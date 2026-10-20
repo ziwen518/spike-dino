@@ -18,7 +18,7 @@ dependencies = [
 test = ["pytest>=7.4"]
 
 [tool.setuptools.packages.find]
-include = ["spike_dino*", "third_party.eventclr*"]
+include = ["spike_dino*", "scripts*", "third_party.eventclr*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -16,8 +16,6 @@
 
 </div>
 
-![Spike-DINO overview](assets/spike_dino_overview.svg)
-
 > [!IMPORTANT]
 > This repository is an active research preview. It does not yet claim a CVPR-ready result or a full-scale reproduction of DINOv2/DINOv3. Every result below is labeled by protocol and limitation.
 
@@ -115,6 +113,22 @@ The table below uses one seed and an internal labeled holdout from the CIFAR10-D
 
 The v0 block preserves feature diversity but currently reduces frozen classification accuracy. This rules out the present combination as a finished method. The next experiments must isolate visible support, query normalization, bipolar encoding, and residual writing before longer training.
 
+## Qualitative representation diagnostics
+
+These visualizations use teacher patch features from controlled CIFAR10-DVS runs after 562 optimizer steps. RGB channels are the first three PCA components. PCA is fitted separately for each compared model or grid, so exact colors must not be compared across columns; the meaningful signal is spatial structure and consistency.
+
+### Representation evolution through spiking blocks
+
+![Patch RGB-PCA across spiking layers](assets/patch_rgb_pca_layer_progression.png)
+
+The rows show real DVS recordings; columns trace patch features through blocks 0, 6, 11 and the final representation. The figure is a diagnostic of spatial organization, not evidence of semantic segmentation.
+
+### Patch resolution and the visible “mosaic”
+
+![Patch-grid resolution comparison](assets/patch_grid_rgb_pca_resolution.png)
+
+At 128×128 input resolution, patch16 creates an 8×8 feature grid while patch8 creates a 16×16 grid. Upsampling either grid cannot recover within-patch detail, which is why the RGB-PCA map looks blocky. Finer maps require smaller patches or a hierarchical decoder, and should be compared at matched compute.
+
 ## Quick start
 
 ### Installation
@@ -164,9 +178,9 @@ Raw data is intentionally not included. Download metadata and checksums are stor
 | DVS-Gesture | Tonic-compatible events | download metadata, subject-aware manifest |
 
 ```bash
-python scripts/download_cifar10dvs.py --help
-python scripts/build_benchmark_manifests.py --help
-python scripts/build_fewshot_manifests.py --help
+python -m scripts.download_cifar10dvs --help
+python -m scripts.build_benchmark_manifests --help
+python -m scripts.build_fewshot_manifests --help
 ```
 
 For comparison with SpikeCLR, each dataset should be pretrained and evaluated separately. A multi-domain model must be reported as a different protocol.
