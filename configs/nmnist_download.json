@@ -1,0 +1,9 @@
+{
+  "dataset": "NMNIST",
+  "source": "https://www.garrickorchard.com/datasets/n-mnist (author-linked Google Drive mirror)",
+  "checksum_source": "SpikingJelly/Tonic NMNIST dataset definitions",
+  "files": [
+    {"name":"Test.zip", "size":169674850, "md5":"69ca8762b2fe404d9b9bad1103e97832", "url":"https://drive.usercontent.google.com/download?id=1HAyMnpJdF_kxQEiO64D3P0ygImAfeg9f&export=download&confirm=t"},
+    {"name":"Train.zip", "size":1011893601, "md5":"20959b8e626244a1b502305a9e6e2031", "url":"https://drive.usercontent.google.com/download?id=1f-GwPB4pv0vqd0BqVs4_NsVYB4UTjsc-&export=download&confirm=t"}
+  ]
+}

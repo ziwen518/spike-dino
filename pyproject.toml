@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spike-dino"
+version = "0.1.0.dev0"
+description = "Research implementation of DINO-style self-distillation for spiking event vision"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "torch>=2.2",
+  "spikingjelly==0.0.0.0.14",
+  "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.4"]
+
+[tool.setuptools.packages.find]
+include = ["spike_dino*", "third_party.eventclr*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

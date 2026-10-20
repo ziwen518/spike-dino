@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Data, archives, model weights, and generated experiments
+data/
+dataset/
+datasets/
+runs/
+logs/
+tmp/
+*.pt
+*.pth
+*.ckpt
+*.npz
+*.npy
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+# Local research material and machine-specific records
+论文/
+references/
+reports/
+RESEARCH_STATUS.md
+SERVER.md
+实现核查.md
+研究路线.md
+MAIE5421_CourseProject_Guidelines_v3.pdf
+*.pdf
+
+# Machine-specific helper scripts
+scripts/server_gpu0.ps1
+scripts/receive_archive.py

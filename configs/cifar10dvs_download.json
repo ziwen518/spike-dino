@@ -1,0 +1,73 @@
+{
+  "dataset": "CIFAR10-DVS",
+  "source": "https://figshare.com/articles/dataset/CIFAR10-DVS_New/4724671",
+  "format": "original aedat",
+  "files": [
+    {
+      "name": "airplane.zip",
+      "size": 747054427,
+      "url": "https://ndownloader.figshare.com/files/7712788",
+      "md5": "0afd5c4bf9ae06af762a77b180354fdd"
+    },
+    {
+      "name": "automobile.zip",
+      "size": 970159102,
+      "url": "https://ndownloader.figshare.com/files/7712791",
+      "md5": "8438dfeba3bc970c94962d995b1b9bdd"
+    },
+    {
+      "name": "bird.zip",
+      "size": 760766288,
+      "url": "https://ndownloader.figshare.com/files/7712794",
+      "md5": "a9c207c91c55b9dc2002dc21c684d785"
+    },
+    {
+      "name": "cat.zip",
+      "size": 843271197,
+      "url": "https://ndownloader.figshare.com/files/7712812",
+      "md5": "52c63c677c2b15fa5146a8daf4d56687"
+    },
+    {
+      "name": "deer.zip",
+      "size": 778283422,
+      "url": "https://ndownloader.figshare.com/files/7712815",
+      "md5": "b6bf21f6c04d21ba4e23fc3e36c8a4a3"
+    },
+    {
+      "name": "dog.zip",
+      "size": 844609875,
+      "url": "https://ndownloader.figshare.com/files/7712818",
+      "md5": "f379ebdf6703d16e0a690782e62639c3"
+    },
+    {
+      "name": "ship.zip",
+      "size": 742404857,
+      "url": "https://ndownloader.figshare.com/files/7712836",
+      "md5": "41c7bd7d6b251be82557c6cce9a7d5c9"
+    },
+    {
+      "name": "truck.zip",
+      "size": 950111954,
+      "url": "https://ndownloader.figshare.com/files/7712839",
+      "md5": "89f3922fd147d9aeff89e76a2b0b70a7"
+    },
+    {
+      "name": "frog.zip",
+      "size": 818824848,
+      "url": "https://ndownloader.figshare.com/files/7712842",
+      "md5": "cad6ed91214b1c7388a5f6ee56d08803"
+    },
+    {
+      "name": "horse.zip",
+      "size": 929265395,
+      "url": "https://ndownloader.figshare.com/files/7712851",
+      "md5": "e7cbbf77bec584ffbf913f00e682782a"
+    },
+    {
+      "name": "README.txt",
+      "size": 1259,
+      "url": "https://ndownloader.figshare.com/files/7713487",
+      "md5": "232221dabe86e512b5509ba32829bc96"
+    }
+  ]
+}

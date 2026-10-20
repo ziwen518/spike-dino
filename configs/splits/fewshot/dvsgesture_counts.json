@@ -1,0 +1,2319 @@
+{
+  "schema": 1,
+  "dataset": "dvsgesture",
+  "source_manifest_sha256": "d98a37a7d49154c2f4cb4d90c19e9f6d40e5490675a73fc193cbed7d3e09dd83",
+  "protocol": "EventCLR-style RandomState per-class selection; same records for SpikeCLR and Spike-DINO",
+  "experiments": [
+    {
+      "dataset": "dvsgesture",
+      "source_manifest_sha256": "d98a37a7d49154c2f4cb4d90c19e9f6d40e5490675a73fc193cbed7d3e09dd83",
+      "seed": 42,
+      "samples_per_class": 1,
+      "mode": "count",
+      "actual_per_class": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1,
+        "10": 1
+      },
+      "train": [
+        {
+          "path": "ibmGestureTrain/user15_natural/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user19_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user01_natural/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user23_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user16_lab/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user16_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user17_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user19_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user14_natural/10.npy",
+          "label": 10
+        }
+      ]
+    },
+    {
+      "dataset": "dvsgesture",
+      "source_manifest_sha256": "d98a37a7d49154c2f4cb4d90c19e9f6d40e5490675a73fc193cbed7d3e09dd83",
+      "seed": 1042,
+      "samples_per_class": 1,
+      "mode": "count",
+      "actual_per_class": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1,
+        "10": 1
+      },
+      "train": [
+        {
+          "path": "ibmGestureTrain/user13_fluorescent_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user06_fluorescent/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user02_lab/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user18_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user16_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user03_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user09_fluorescent/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user14_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user13_fluorescent_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent/10.npy",
+          "label": 10
+        }
+      ]
+    },
+    {
+      "dataset": "dvsgesture",
+      "source_manifest_sha256": "d98a37a7d49154c2f4cb4d90c19e9f6d40e5490675a73fc193cbed7d3e09dd83",
+      "seed": 2042,
+      "samples_per_class": 1,
+      "mode": "count",
+      "actual_per_class": {
+        "0": 1,
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1,
+        "10": 1
+      },
+      "train": [
+        {
+          "path": "ibmGestureTrain/user13_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user01_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user05_lab/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user23_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user07_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user01_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user02_natural/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user19_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent_led/10.npy",
+          "label": 10
+        }
+      ]
+    },
+    {
+      "dataset": "dvsgesture",
+      "source_manifest_sha256": "d98a37a7d49154c2f4cb4d90c19e9f6d40e5490675a73fc193cbed7d3e09dd83",
+      "seed": 42,
+      "samples_per_class": 5,
+      "mode": "count",
+      "actual_per_class": {
+        "0": 5,
+        "1": 5,
+        "2": 5,
+        "3": 5,
+        "4": 5,
+        "5": 5,
+        "6": 5,
+        "7": 5,
+        "8": 5,
+        "9": 5,
+        "10": 5
+      },
+      "train": [
+        {
+          "path": "ibmGestureTrain/user15_natural/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user20_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user19_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user09_fluorescent_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user19_fluorescent/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user22_lab/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user17_lab/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user03_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user11_natural/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user01_natural/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user03_fluorescent/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user09_natural/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user15_lab/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user23_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user12_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user21_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user22_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user16_lab/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user19_natural/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user18_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user20_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user16_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user15_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user01_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user23_lab/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user08_lab/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user14_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user15_lab/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user09_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user17_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user16_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user21_lab/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user09_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user19_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user19_lab/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user06_fluorescent_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user07_fluorescent/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user14_natural/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user06_fluorescent/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user18_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user15_fluorescent_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent/10.npy",
+          "label": 10
+        }
+      ]
+    },
+    {
+      "dataset": "dvsgesture",
+      "source_manifest_sha256": "d98a37a7d49154c2f4cb4d90c19e9f6d40e5490675a73fc193cbed7d3e09dd83",
+      "seed": 1042,
+      "samples_per_class": 5,
+      "mode": "count",
+      "actual_per_class": {
+        "0": 5,
+        "1": 5,
+        "2": 5,
+        "3": 5,
+        "4": 5,
+        "5": 5,
+        "6": 5,
+        "7": 5,
+        "8": 5,
+        "9": 5,
+        "10": 5
+      },
+      "train": [
+        {
+          "path": "ibmGestureTrain/user13_fluorescent_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user17_lab/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user22_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user15_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user06_fluorescent/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user12_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user11_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user22_fluorescent_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user01_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user02_lab/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user15_fluorescent/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user08_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user11_natural/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user17_fluorescent_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user18_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user01_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user05_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user22_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user08_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user08_fluorescent_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user02_natural/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user21_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user16_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user06_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user07_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user03_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user23_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user03_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user08_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user17_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user06_lab/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user02_lab/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user09_fluorescent/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user15_natural/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user03_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user17_fluorescent/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user14_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user21_fluorescent_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user10_lab/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user17_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user03_natural/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user13_fluorescent_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user02_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user15_fluorescent/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user13_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user20_fluorescent/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user11_fluorescent_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user09_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user22_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user16_natural/10.npy",
+          "label": 10
+        }
+      ]
+    },
+    {
+      "dataset": "dvsgesture",
+      "source_manifest_sha256": "d98a37a7d49154c2f4cb4d90c19e9f6d40e5490675a73fc193cbed7d3e09dd83",
+      "seed": 2042,
+      "samples_per_class": 5,
+      "mode": "count",
+      "actual_per_class": {
+        "0": 5,
+        "1": 5,
+        "2": 5,
+        "3": 5,
+        "4": 5,
+        "5": 5,
+        "6": 5,
+        "7": 5,
+        "8": 5,
+        "9": 5,
+        "10": 5
+      },
+      "train": [
+        {
+          "path": "ibmGestureTrain/user13_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user15_lab/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user07_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user01_lab/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user17_natural/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user01_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user15_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user13_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user06_lab/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user05_lab/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user21_lab/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user12_fluorescent_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user18_fluorescent/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user23_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user09_fluorescent/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user21_lab/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user11_fluorescent_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user05_lab/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user07_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user19_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user01_fluorescent_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user03_fluorescent_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user13_lab/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user11_fluorescent_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user09_lab/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user01_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user01_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user11_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user13_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user06_fluorescent/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user14_fluorescent/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user05_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user13_natural/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user02_natural/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user15_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user08_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user01_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user22_lab/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user19_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user06_lab/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user15_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user02_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user16_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user21_fluorescent/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user02_natural/10.npy",
+          "label": 10
+        }
+      ]
+    },
+    {
+      "dataset": "dvsgesture",
+      "source_manifest_sha256": "d98a37a7d49154c2f4cb4d90c19e9f6d40e5490675a73fc193cbed7d3e09dd83",
+      "seed": 42,
+      "samples_per_class": 10,
+      "mode": "count",
+      "actual_per_class": {
+        "0": 10,
+        "1": 10,
+        "2": 10,
+        "3": 10,
+        "4": 10,
+        "5": 10,
+        "6": 10,
+        "7": 10,
+        "8": 10,
+        "9": 10,
+        "10": 10
+      },
+      "train": [
+        {
+          "path": "ibmGestureTrain/user15_natural/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user20_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user20_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user16_lab/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user10_lab/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user03_fluorescent_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user01_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user19_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user09_fluorescent_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user19_fluorescent/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user22_lab/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user05_lab/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user19_fluorescent_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user06_lab/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user13_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user04_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user17_lab/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user03_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user11_natural/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user13_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user11_fluorescent/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user02_natural/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user06_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user13_fluorescent/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user01_natural/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user03_fluorescent/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user09_natural/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user15_lab/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user02_natural/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user17_lab/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user18_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user10_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user08_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user23_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user12_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user21_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user22_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user23_lab/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user08_lab/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user18_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user06_fluorescent_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user17_lab/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user16_lab/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user19_natural/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user18_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user20_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user20_fluorescent_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user04_natural/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user01_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user12_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user16_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user15_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user01_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user23_lab/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user09_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user21_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user09_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user08_lab/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user14_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user15_lab/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user09_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user11_natural/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user13_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user22_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user09_natural/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user17_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user16_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user21_lab/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user09_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user23_lab/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user18_lab/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user07_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user15_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user20_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user19_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user19_lab/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user06_fluorescent_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user07_fluorescent/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user18_fluorescent/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user08_lab/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user04_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user14_fluorescent_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user14_natural/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user06_fluorescent/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user18_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user15_fluorescent_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user17_natural/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user14_fluorescent/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user06_natural/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user11_natural/10.npy",
+          "label": 10
+        }
+      ]
+    },
+    {
+      "dataset": "dvsgesture",
+      "source_manifest_sha256": "d98a37a7d49154c2f4cb4d90c19e9f6d40e5490675a73fc193cbed7d3e09dd83",
+      "seed": 1042,
+      "samples_per_class": 10,
+      "mode": "count",
+      "actual_per_class": {
+        "0": 10,
+        "1": 10,
+        "2": 10,
+        "3": 10,
+        "4": 10,
+        "5": 10,
+        "6": 10,
+        "7": 10,
+        "8": 10,
+        "9": 10,
+        "10": 10
+      },
+      "train": [
+        {
+          "path": "ibmGestureTrain/user13_fluorescent_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user17_lab/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user22_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user15_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user04_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user07_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user19_fluorescent_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user22_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user18_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user01_fluorescent_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user06_fluorescent/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user12_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user11_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user22_fluorescent_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user01_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user16_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user19_fluorescent/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user09_fluorescent_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user14_fluorescent/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user02_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user02_lab/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user15_fluorescent/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user08_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user11_natural/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user17_fluorescent_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user05_lab/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user05_natural/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user16_lab/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user19_fluorescent_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user19_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user18_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user01_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user05_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user22_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user21_lab/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user22_natural/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user09_fluorescent_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user20_fluorescent/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user08_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user08_fluorescent_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user02_natural/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user21_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user09_lab/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user17_fluorescent_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user20_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user07_lab/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user16_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user06_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user07_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user03_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user23_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user18_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user14_natural/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user19_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user03_natural/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user11_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user03_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user08_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user17_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user06_lab/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user02_lab/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user07_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user09_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user15_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user12_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user09_fluorescent/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user15_natural/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user03_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user17_fluorescent/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user03_natural/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user16_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user03_fluorescent/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user11_fluorescent/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user14_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user21_fluorescent_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user10_lab/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user17_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user03_natural/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user17_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user16_lab/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user15_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user16_natural/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user18_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user13_fluorescent_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user02_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user15_fluorescent/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user13_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user20_fluorescent/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user05_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user11_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user22_lab/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user08_lab/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user10_lab/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user11_fluorescent_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user09_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user22_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user16_natural/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user10_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user01_lab/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user11_fluorescent/10.npy",
+          "label": 10
+        }
+      ]
+    },
+    {
+      "dataset": "dvsgesture",
+      "source_manifest_sha256": "d98a37a7d49154c2f4cb4d90c19e9f6d40e5490675a73fc193cbed7d3e09dd83",
+      "seed": 2042,
+      "samples_per_class": 10,
+      "mode": "count",
+      "actual_per_class": {
+        "0": 10,
+        "1": 10,
+        "2": 10,
+        "3": 10,
+        "4": 10,
+        "5": 10,
+        "6": 10,
+        "7": 10,
+        "8": 10,
+        "9": 10,
+        "10": 10
+      },
+      "train": [
+        {
+          "path": "ibmGestureTrain/user13_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user15_lab/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user07_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user01_lab/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user17_natural/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user03_natural/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user20_fluorescent/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user04_natural/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user13_led/0.npy",
+          "label": 0
+        },
+        {
+          "path": "ibmGestureTrain/user01_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user15_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user13_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user06_lab/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user06_fluorescent_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user19_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user17_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user03_natural/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user13_led/1.npy",
+          "label": 1
+        },
+        {
+          "path": "ibmGestureTrain/user05_lab/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user21_lab/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user12_fluorescent_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user18_fluorescent/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user20_fluorescent/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user06_lab/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user09_natural/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user05_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user01_led/2.npy",
+          "label": 2
+        },
+        {
+          "path": "ibmGestureTrain/user23_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user09_fluorescent/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user21_lab/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user11_fluorescent_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user05_lab/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user11_natural/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user17_fluorescent/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user17_fluorescent_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user03_led/3.npy",
+          "label": 3
+        },
+        {
+          "path": "ibmGestureTrain/user07_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user19_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user01_fluorescent_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user03_fluorescent_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user18_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user10_lab/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user20_fluorescent/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user22_natural/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user12_led/4.npy",
+          "label": 4
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user13_lab/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user11_fluorescent_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user09_lab/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user01_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user21_natural/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user05_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user19_fluorescent_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent_led/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user15_fluorescent/5.npy",
+          "label": 5
+        },
+        {
+          "path": "ibmGestureTrain/user01_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user11_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user13_natural/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user06_fluorescent/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user14_fluorescent/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user05_lab/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user18_lab/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user17_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user07_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user01_fluorescent_led/6.npy",
+          "label": 6
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user10_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user05_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user23_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user13_natural/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user12_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user18_lab/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user21_fluorescent/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user03_natural/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent_led/7.npy",
+          "label": 7
+        },
+        {
+          "path": "ibmGestureTrain/user02_natural/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user15_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user08_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user01_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user22_lab/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user22_fluorescent/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user19_natural/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user06_natural/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user01_natural/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user15_fluorescent_led/8.npy",
+          "label": 8
+        },
+        {
+          "path": "ibmGestureTrain/user19_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user06_lab/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user15_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user02_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user16_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user03_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user13_fluorescent_led/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user03_fluorescent/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user05_lab/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user02_natural/9.npy",
+          "label": 9
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user05_fluorescent/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user02_fluorescent/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user21_fluorescent/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user02_natural/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user10_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user12_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user13_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user09_fluorescent_led/10.npy",
+          "label": 10
+        },
+        {
+          "path": "ibmGestureTrain/user07_lab/10.npy",
+          "label": 10
+        }
+      ]
+    }
+  ],
+  "sha256": "c3397ac7a0d7c3d71a02ba8160b42eb4fcfe07de1bf437b8d9466e5375182cf8"
+}
