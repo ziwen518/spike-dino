@@ -65,8 +65,8 @@ The accumulator preserves multi-bit coincidence counts. It does not apply an int
 Query evidence is centered across channels and encoded as two binary streams:
 
 $$
-S^+=SN(\operatorname{ReLU}(\operatorname{RMS}(r-\bar r))),\qquad
-S^-=SN(\operatorname{ReLU}(-\operatorname{RMS}(r-\bar r))).
+S^+=SN(\mathrm{ReLU}(\mathrm{RMS}(r-\bar r))),\qquad
+S^-=SN(\mathrm{ReLU}(-\mathrm{RMS}(r-\bar r))).
 $$
 
 A shared projection produces the signed current `W S⁺ − W S⁻`. Learned synapses consume binary spikes while preserving both positive and negative evidence.
