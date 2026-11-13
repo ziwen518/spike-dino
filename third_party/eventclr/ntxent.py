@@ -107,3 +107,4 @@ class TemporalNTXentLoss(NTXentLoss):
         total_loss = sum(forward_fn(z_i[t], z_j[t]) for t in range(T))
 
         return total_loss / T
+

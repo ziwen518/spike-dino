@@ -20,6 +20,9 @@ from .benchmark_manifest import load_manifest
 from .dinov3 import SpikingDinoV3Prototype
 from .gradient_fusion import (balanced_backbone_gradients,
                               global_preserving_backbone_gradients)
+from .optimizer_precision import (FP64SecondMomentAdamW,
+                                  use_fp64_adam_second_moment)
+from .spiking_vit import UnitBoundedBackward
 
 
 def patch_masks(batch, patches, low, high, device, probability=.5):
@@ -140,6 +143,28 @@ def linear_warmup_value(step, start, final, warmup_steps):
     return start + (final - start) * min(step / warmup_steps, 1.)
 
 
+def backward_branch_attention_only(model, metrics):
+    """Keep global-loss gradients intact; add branch loss only to final SSA.
+
+    The auxiliary objective is much stronger than DINO at the attention
+    projection despite its small scalar value. Restricting its backward
+    target tests branch learning without perturbing the shared event stem.
+    """
+
+    if model.branch_align_weight <= 0 or '_branch_alignment_raw' not in metrics:
+        raise ValueError('Missing active branch-alignment objective')
+    auxiliary = model.branch_align_weight * metrics['_branch_alignment_raw']
+    (metrics['loss'] - auxiliary).backward(retain_graph=True)
+    selected = tuple(model.student.backbone.blocks[-1].attn.parameters())
+    gradients = torch.autograd.grad(
+        auxiliary, selected, allow_unused=True)
+    for parameter, gradient in zip(selected, gradients):
+        if gradient is None:
+            continue
+        parameter.grad = (gradient if parameter.grad is None
+                          else parameter.grad + gradient)
+
+
 def save_checkpoint(model, optimizer, args, completed, output):
     config = {key: str(value) if isinstance(value, Path) else value
               for key, value in vars(args).items()}
@@ -159,7 +184,8 @@ def save_checkpoint(model, optimizer, args, completed, output):
 def parser():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--dataset', choices=('cifar10dvs', 'ncaltech101',
-                                         'nmnist', 'dvsgesture'),
+                                         'nmnist', 'dvsgesture',
+                                         'mini_nimagenet'),
                    default='cifar10dvs')
     p.add_argument('--dataset-root', type=Path)
     p.add_argument('--manifest-path', type=Path)
@@ -177,6 +203,11 @@ def parser():
                    default='none')
     p.add_argument('--global-view-policy',
                    choices=('independent', 'shared_core',
+                            'shared_core_polarity',
+                            'shared_core_timewarp',
+                            'shared_core_timewarp_correspondence_crop',
+                            'shared_core_timewarp_dinov3_local',
+                            'asymmetric_clean_teacher_timewarp_student',
                             'shared_temporal_windows',
                             'shared_time_independent_space',
                             'shared_time_shifted_space',
@@ -189,14 +220,25 @@ def parser():
     p.add_argument('--depth', type=int, default=12)
     p.add_argument('--dim', type=int, default=384)
     p.add_argument('--heads', type=int, default=6)
+    p.add_argument('--tokenizer', choices=('patchify', 'sps'),
+                   default='patchify')
     p.add_argument('--block-variant', choices=('standard', 'evidence'),
                    default='standard',
                    help='Experimental full block replacement; evidence uses its own attention and residual')
+    p.add_argument('--analog-control', choices=('none', 'count', 'softmax'),
+                   default='none', help='Parameter-matched ANN ablation')
+    p.add_argument('--temporal-neuron', choices=('lif', 'parallel', 'serial'), default='lif')
+    p.add_argument('--cls-query-carrier-split', action='store_true')
+    p.add_argument('--evidence-attention-write-scale', type=float, default=1.)
+    p.add_argument('--evidence-ffn-write-scale', type=float, default=1.)
     p.add_argument('--attention-variant',
                    choices=('matrix_recode', 'matrix_legacy', 'channel_gate',
                             'token_pair', 'token_pair_centered',
                             'matrix_value_skip', 'matrix_count',
-                            'spikformer_count'),
+                            'spikformer_count', 'spikformer_count_visible',
+                            'spikformer_count_preproj_or',
+                            'spikformer_count_temporal',
+                            'spike_softmax'),
                    default='matrix_recode')
     p.add_argument('--cls-aggregation',
                    choices=('attention_only', 'spike_pool',
@@ -210,6 +252,8 @@ def parser():
                                                  'signed_layer_scale',
                                                  'binary_ei'),
                    default='accumulate')
+    p.add_argument('--layer-scale-init', type=float, default=1e-5,
+                   help='Initial attention/MLP write scale for LayerScale policies')
     p.add_argument('--masked-context-bridge', choices=('none', 'spike_or'),
                    default='none')
     p.add_argument('--residual-gradient-policy',
@@ -219,13 +263,22 @@ def parser():
                    help='Optional stop-gradient at each spiking residual branch input')
     p.add_argument('--head-hidden', type=int, default=2048)
     p.add_argument('--head-layers', type=int, choices=(2, 3), default=3)
+    p.add_argument('--patch-head-time-pool', choices=('none', 'pair_or'),
+                   default='none')
     p.add_argument('--prototype-readout', choices=('linear', 'cosine'), default='linear')
     p.add_argument('--ibot-reduction', choices=('sample', 'token'), default='sample')
     p.add_argument('--ibot-shortcut', choices=('none', 'input_or'),
                    default='none')
-    p.add_argument('--dino-shortcut', choices=('none', 'input_or'),
+    p.add_argument('--dino-shortcut', choices=('none', 'input_or', 'hidden_or'),
                    default='none')
     p.add_argument('--ibot-diversity-weight', type=float, default=0.)
+    p.add_argument('--ibot-loss-weight', type=float, default=1.,
+                   help='Zero for a DINO-only ablation with identical masked forward diagnostics')
+    p.add_argument('--branch-align-weight', type=float, default=0.,
+                   help='Experimental cross-view EMA CLS target for final attention branch')
+    p.add_argument('--branch-align-gradient-policy',
+                   choices=('sum', 'last_attention_only'), default='sum',
+                   help='Route auxiliary branch gradient to the last attention module only')
     p.add_argument('--ibot-diversity-source',
                    choices=('masked', 'visible', 'visible_position'),
                    default='masked')
@@ -244,15 +297,27 @@ def parser():
                    help='Keep student DINO and iBOT prototype weights fixed for early full epochs')
     p.add_argument('--no-checkpoint', action='store_true',
                    help='Only for short engineering checks; retain metrics but no model weights')
+    p.add_argument('--monitor-numerics', action='store_true',
+                   help='Per-step FP64 gradient summaries and failure-state snapshot; no optimizer changes')
     p.add_argument('--resume', type=Path)
     p.add_argument('--anomaly-step', type=int,
                    help='Diagnostic-only autograd trace for one optimizer step')
+    p.add_argument('--trace-stem-boundaries', action='store_true',
+                   help='At anomaly step, inspect loss gradients on both sides of patch normalization')
     p.add_argument('--diagnose-detach-branches', action='store_true',
                    help='At the anomaly step, test backbone residual-branch gradient isolation')
     p.add_argument('--diagnose-mask-detach-branches', action='store_true',
                    help='At the anomaly step, isolate only masked token branch gradients')
     p.add_argument('--diagnose-bounded-branches', action='store_true',
                    help='At the anomaly step, bound branch-input gradients')
+    p.add_argument('--diagnose-bounded-ibot-branches', action='store_true',
+                   help='At anomaly step, bound only the separate masked iBOT branch backward')
+    p.add_argument('--diagnose-ibot-gradient-cut-block', type=int,
+                   help='At anomaly step, detach masked iBOT stream before this block')
+    p.add_argument('--diagnose-layer-norm-eps', type=float,
+                   help='Resume-only causal test: override LayerNorm eps without changing weights')
+    p.add_argument('--diagnose-layer-norm-scope', choices=('stem', 'all'),
+                   default='all')
     p.add_argument('--lr', type=float, default=1e-4)
     p.add_argument('--lr-warmup-steps', type=int, default=0,
                    help='Linear warmup from zero, then keep --lr flat')
@@ -261,6 +326,11 @@ def parser():
     p.add_argument('--teacher-temp-warmup-steps', type=int, default=0)
     p.add_argument('--teacher-momentum', type=float, default=.996)
     p.add_argument('--adam-beta2', type=float, default=.999)
+    p.add_argument('--adam-second-moment-dtype', choices=('float32', 'float64'),
+                   default='float32',
+                   help='Store AdamW squared-gradient moments in fp64 to avoid SNN gradient-squaring overflow')
+    p.add_argument('--stem-backward-bound', action='store_true',
+                   help='Experimental identity-forward, per-patch bounded gradient before tokenizer convolution')
     p.add_argument('--weight-decay', type=float, default=.01)
     p.add_argument('--seed', type=int, default=42)
     p.add_argument('--mask-min', type=float, default=.1)
@@ -278,6 +348,8 @@ def parser():
                    choices=('inherit', 'full', 'bounded_branch'),
                    default='inherit',
                    help='Backward route for the separate masked iBOT pass')
+    p.add_argument('--ibot-gradient-cut-block', type=int,
+                   help='Experimental masked iBOT reverse-path split before this block')
     p.add_argument('--gradient-fusion',
                    choices=('sum', 'balanced_blocks',
                             'balanced_blocks_stem_global',
@@ -290,10 +362,15 @@ def parser():
     p.add_argument('--balance-mode', choices=('joint', 'per_view'), default='joint')
     p.add_argument('--target-policy', choices=('sinkhorn', 'ema_center'),
                    default='sinkhorn')
+    p.add_argument('--temporal-dino-weight', type=float, default=0.)
+    p.add_argument('--temporal-dino-window', type=int, default=4)
     p.add_argument('--patch-teacher-aggregation',
                    choices=('single_view', 'matched_cross_view_mean'),
                    default='single_view',
                    help='Fuse aligned teacher patch logits across two global event views')
+    p.add_argument('--patch-teacher-head-policy', choices=('ibot', 'dino'),
+                   default='ibot',
+                   help='Experimental patch target in the existing global DINO prototype space')
     p.add_argument('--norm-policy', choices=('ema_bn', 'batch_stat', 'layer_norm'),
                    default='ema_bn')
     return p
@@ -309,12 +386,38 @@ def main():
         raise ValueError('Invalid steps, batch size or local crop count')
     if args.ibot_diversity_weight < 0:
         raise ValueError('iBOT diversity weight must be nonnegative')
+    if args.layer_scale_init <= 0:
+        raise ValueError('LayerScale initialization must be positive')
+    if args.diagnose_layer_norm_eps is not None and (
+            args.resume is None or args.diagnose_layer_norm_eps <= 0):
+        raise ValueError('LayerNorm-eps diagnosis needs a resume checkpoint and positive eps')
+    if args.ibot_loss_weight < 0:
+        raise ValueError('iBOT loss weight must be nonnegative')
+    if args.branch_align_weight < 0:
+        raise ValueError('Branch alignment weight must be nonnegative')
+    if args.branch_align_weight and args.gradient_fusion != 'sum':
+        raise ValueError('Branch alignment currently needs ordinary summed gradients')
+    if (args.branch_align_gradient_policy != 'sum' and
+            (args.branch_align_weight == 0 or args.temporal_dino_weight or
+             args.gram_anchor_phase or args.ibot_diversity_weight)):
+        raise ValueError('Isolated branch gradient needs the plain DINO/iBOT/KoLeo route')
     if args.mask_observation_policy == 'partial_time' and args.time_steps < 2:
         raise ValueError('Partial temporal masking needs at least two time bins')
     if args.no_checkpoint and (args.resume is not None or args.steps > 10):
         raise ValueError('--no-checkpoint is only for at most 10 fresh smoke steps')
     if args.gradient_fusion != 'sum' and args.anomaly_step is not None:
         raise ValueError('Gradient fusion and anomaly-step diagnostics cannot be combined')
+    if args.trace_stem_boundaries and args.anomaly_step is None:
+        raise ValueError('Stem boundary trace requires --anomaly-step')
+    if (args.diagnose_bounded_ibot_branches and
+            (args.anomaly_step is None or
+             args.global_cls_policy != 'unmasked_separate')):
+        raise ValueError('Bounded iBOT diagnosis needs anomaly step and separate CLS')
+    if (args.diagnose_ibot_gradient_cut_block is not None and
+            (args.anomaly_step is None or
+             args.global_cls_policy != 'unmasked_separate' or
+             not 0 <= args.diagnose_ibot_gradient_cut_block <= args.depth)):
+        raise ValueError('Diagnostic iBOT gradient cut needs valid block and separate CLS')
     if args.gram_anchor_phase and args.resume is None:
         raise ValueError('Gram anchor phase requires a trained resume checkpoint')
     if args.gram_weight < 0:
@@ -348,13 +451,26 @@ def main():
         raise ValueError('Shared-core global views require a fixed manifest')
     if (args.patch_teacher_aggregation == 'matched_cross_view_mean' and
             args.global_view_policy not in
-            ('shared_core', 'shared_temporal_windows',
+            ('shared_core', 'shared_core_timewarp',
+             'asymmetric_clean_teacher_timewarp_student',
+             'shared_temporal_windows',
              'shared_core_nested_local')):
         raise ValueError('Cross-view patch targets require aligned global crop grids')
     if args.freeze_last_layer_epochs and args.synthetic:
         raise ValueError('Prototype-freeze epochs require a real fixed training set')
+    if (args.global_view_policy ==
+            'asymmetric_clean_teacher_timewarp_student' and
+            args.local_crops != 0):
+        raise ValueError('Asymmetric event views require zero local crops')
     if args.block_variant == 'evidence' and args.gradient_fusion != 'sum':
         raise ValueError('Evaluate evidence blocks with ordinary loss gradients before adding fusion rules')
+    if args.temporal_dino_weight > 0 and (
+            args.global_view_policy != 'shared_core' or args.local_crops != 0 or
+            args.time_steps % args.temporal_dino_window or
+            args.temporal_dino_window >= args.time_steps or
+            args.target_policy != 'sinkhorn' or args.balance_mode != 'joint'):
+        raise ValueError('Temporal DINO needs aligned shared-core globals, '
+                         'no locals, a proper time window and joint Sinkhorn')
     if args.output.exists() and any(args.output.iterdir()) and args.resume is None:
         raise FileExistsError('Choose a new, empty output directory')
     args.output.mkdir(parents=True, exist_ok=True)
@@ -363,6 +479,10 @@ def main():
     model = SpikingDinoV3Prototype(image_size=args.size, patch_size=args.patch_size,
                                    dim=args.dim, depth=args.depth, heads=args.heads,
                                    block_variant=args.block_variant,
+                                   evidence_attention_write_scale=args.evidence_attention_write_scale,
+                                   evidence_ffn_write_scale=args.evidence_ffn_write_scale,
+                                   tokenizer=args.tokenizer,
+                                   layer_scale_init=args.layer_scale_init,
                                    attention_variant=args.attention_variant,
                                    cls_aggregation=args.cls_aggregation,
                                    residual_policy=args.residual_policy,
@@ -370,14 +490,18 @@ def main():
                                    residual_gradient_policy=args.residual_gradient_policy,
                                    head_hidden=args.head_hidden,
                                    head_layers=args.head_layers,
+                                   patch_head_time_pool=args.patch_head_time_pool,
                                    prototype_readout=args.prototype_readout,
                                    ibot_reduction=args.ibot_reduction,
                                    ibot_shortcut=args.ibot_shortcut,
                                    dino_shortcut=args.dino_shortcut,
                                    ibot_diversity_weight=args.ibot_diversity_weight,
+                                   ibot_weight=args.ibot_loss_weight,
+                                   branch_align_weight=args.branch_align_weight,
                                    ibot_diversity_source=args.ibot_diversity_source,
                                    global_cls_policy=args.global_cls_policy,
                                    ibot_residual_gradient_policy=args.ibot_residual_gradient_policy,
+                                   ibot_gradient_cut_block=args.ibot_gradient_cut_block,
                                    bottleneck=args.bottleneck,
                                    prototypes=args.prototypes,
                                    dino_prototypes=args.dino_prototypes,
@@ -388,14 +512,38 @@ def main():
                                    ibot_bottleneck=args.ibot_bottleneck,
                                    balance_mode=args.balance_mode,
                                    target_policy=args.target_policy,
+                                   temporal_dino_weight=args.temporal_dino_weight,
+                                   temporal_dino_window=args.temporal_dino_window,
                                    patch_teacher_aggregation=args.patch_teacher_aggregation,
+                                   patch_teacher_head_policy=args.patch_teacher_head_policy,
                                    norm_policy=args.norm_policy,
                                    teacher_temp=args.teacher_temp_start,
                                    teacher_momentum=args.teacher_momentum,
-                                   gram_weight=args.gram_weight).to(args.device).train()
-    optimizer = torch.optim.AdamW(
+                                   gram_weight=args.gram_weight)
+    if args.analog_control != 'none':
+        from .analog_control import make_analog_control
+        model = make_analog_control(model, args.analog_control)
+    if args.temporal_neuron != 'lif' or args.cls_query_carrier_split:
+        if args.analog_control != 'none':
+            raise ValueError('SNN redesign and ANN control must be isolated')
+        from .dino_spike_redesign import apply_dino_redesign
+        model = apply_dino_redesign(model, args.temporal_neuron, args.cls_query_carrier_split)
+    model = model.to(args.device).train()
+    if args.stem_backward_bound:
+        def bound_patch_gradient(_module, _inputs, output):
+            return UnitBoundedBackward.apply(
+                output.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+        model.student.backbone.patch_embed.register_forward_hook(
+            bound_patch_gradient)
+    optimizer_class = (FP64SecondMomentAdamW if
+                       args.adam_second_moment_dtype == 'float64' else
+                       torch.optim.AdamW)
+    optimizer = optimizer_class(
         model.student.parameters(), lr=args.lr,
-        betas=(.9, args.adam_beta2), weight_decay=args.weight_decay)
+        betas=(.9, args.adam_beta2), weight_decay=args.weight_decay,
+        foreach=False if args.adam_second_moment_dtype == 'float64' else None)
+    if args.adam_second_moment_dtype == 'float64':
+        use_fp64_adam_second_moment(optimizer)
     start_step = 0
     if args.resume is not None:
         previous = torch.load(args.resume, map_location='cpu', weights_only=True)
@@ -407,12 +555,19 @@ def main():
                   'view_validity', 'max_view_attempts', 'global_view_policy',
                   'time_steps',
                   'batch_size', 'local_crops', 'depth', 'dim', 'heads', 'block_variant',
+                  'tokenizer', 'layer_scale_init',
+                  'analog_control', 'temporal_neuron', 'cls_query_carrier_split',
+                  'evidence_attention_write_scale', 'evidence_ffn_write_scale',
                   'cls_aggregation', 'residual_policy', 'ibot_shortcut',
                   'dino_shortcut',
                   'ibot_diversity_weight',
+                  'ibot_loss_weight',
+                  'branch_align_weight',
+                  'branch_align_gradient_policy',
                   'ibot_diversity_source',
                   'masked_context_bridge', 'residual_gradient_policy',
-                  'head_hidden', 'head_layers', 'bottleneck', 'prototypes',
+                  'head_hidden', 'head_layers', 'patch_head_time_pool',
+                  'bottleneck', 'prototypes',
                   'dino_prototypes', 'ibot_prototypes', 'dino_hidden',
                   'ibot_hidden', 'dino_bottleneck', 'ibot_bottleneck',
                   'lr', 'lr_warmup_steps', 'teacher_temp_start',
@@ -421,25 +576,43 @@ def main():
                   'seed', 'mask_min', 'mask_max', 'mask_probability',
                   'freeze_last_layer_epochs',
                   'balance_mode', 'target_policy',
+                  'temporal_dino_weight', 'temporal_dino_window',
                   'patch_teacher_aggregation', 'norm_policy', 'mask_policy',
+                  'patch_teacher_head_policy',
                   'mask_observation_policy', 'global_cls_policy',
                   'ibot_residual_gradient_policy', 'gradient_fusion',
+                  'ibot_gradient_cut_block',
+                  'adam_second_moment_dtype',
                   'gram_weight')
         original.setdefault('prototype_readout', 'cosine')
         original.setdefault('ibot_reduction', 'token')
         original.setdefault('attention_variant', 'matrix_legacy')
         original.setdefault('block_variant', 'standard')
+        original.setdefault('tokenizer', 'patchify')
+        original.setdefault('layer_scale_init', 1e-5)
+        original.setdefault('patch_head_time_pool', 'none')
+        original.setdefault('evidence_attention_write_scale', 1.)
+        original.setdefault('evidence_ffn_write_scale', 1.)
+        original.setdefault('analog_control', 'none')
+        original.setdefault('temporal_neuron', 'lif')
+        original.setdefault('cls_query_carrier_split', False)
         original.setdefault('cls_aggregation', 'attention_only')
         original.setdefault('residual_policy', 'accumulate')
         original.setdefault('ibot_shortcut', 'none')
         original.setdefault('dino_shortcut', 'none')
         original.setdefault('ibot_diversity_weight', 0.)
+        original.setdefault('ibot_loss_weight', 1.)
+        original.setdefault('branch_align_weight', 0.)
+        original.setdefault('branch_align_gradient_policy', 'sum')
         original.setdefault('ibot_diversity_source', 'masked')
         original.setdefault('masked_context_bridge', 'none')
         original.setdefault('residual_gradient_policy', 'full')
         original.setdefault('global_cls_policy', 'masked')
         original.setdefault('ibot_residual_gradient_policy', 'inherit')
+        original.setdefault('ibot_gradient_cut_block', None)
         original.setdefault('gradient_fusion', 'sum')
+        original.setdefault('adam_second_moment_dtype', 'float32')
+        original.setdefault('stem_backward_bound', False)
         original.setdefault('gram_weight', 1.)
         original.setdefault('lr_warmup_steps', 0)
         original.setdefault('teacher_temp_start', .04)
@@ -456,7 +629,10 @@ def main():
         original.setdefault('view_validity', 'none')
         original.setdefault('global_view_policy', 'independent')
         original.setdefault('target_policy', 'sinkhorn')
+        original.setdefault('temporal_dino_weight', 0.)
+        original.setdefault('temporal_dino_window', 4)
         original.setdefault('patch_teacher_aggregation', 'single_view')
+        original.setdefault('patch_teacher_head_policy', 'ibot')
         original.setdefault('freeze_last_layer_epochs', 0)
         original.setdefault('max_view_attempts', 4)
         for key in ('dino_prototypes', 'ibot_prototypes', 'dino_hidden',
@@ -487,6 +663,8 @@ def main():
         if args.gram_anchor_phase and not checkpoint_has_gram:
             model.enable_gram_refinement()
         optimizer.load_state_dict(previous['optimizer'])
+        if args.adam_second_moment_dtype == 'float64':
+            use_fp64_adam_second_moment(optimizer)
         start_step = previous['steps']
         if start_step >= args.steps:
             raise ValueError('Requested step target must exceed completed steps')
@@ -499,6 +677,20 @@ def main():
         torch.set_rng_state(previous['cpu_rng'])
         if str(args.device).startswith('cuda'):
             torch.cuda.set_rng_state_all(previous['cuda_rng'])
+    if args.diagnose_layer_norm_eps is not None:
+        if args.norm_policy != 'layer_norm':
+            raise ValueError('LayerNorm-eps diagnosis requires norm_policy=layer_norm')
+        target = (model.student.backbone.patch_norm
+                  if args.diagnose_layer_norm_scope == 'stem' else model)
+        changed = 0
+        for module in target.modules():
+            if isinstance(module, torch.nn.LayerNorm):
+                module.eps = args.diagnose_layer_norm_eps
+                changed += 1
+        if not changed:
+            raise RuntimeError('No LayerNorm modules matched diagnostic scope')
+        print('DIAGNOSTIC_LAYER_NORM_EPS', args.diagnose_layer_norm_scope,
+              args.diagnose_layer_norm_eps, 'modules=', changed, flush=True)
     dataset = None
     if not args.synthetic:
         dataset_kwargs = dict(seed=args.seed, time_steps=args.time_steps,
@@ -533,6 +725,9 @@ def main():
     log_path = args.output / 'metrics.jsonl'
     for step in range(start_step, args.steps):
         started = time.monotonic()
+        if args.monitor_numerics:
+            before_cpu_rng = torch.get_rng_state()
+            before_cuda_rng = torch.cuda.get_rng_state_all() if str(args.device).startswith('cuda') else None
         effective_lr = linear_warmup_value(
             step, 0., args.lr, args.lr_warmup_steps)
         model.teacher_temp = linear_warmup_value(
@@ -550,6 +745,15 @@ def main():
             batch = next(iterator)
             views = [v.permute(1, 0, 2, 3, 4).to(args.device,
                                                  non_blocking=True) for v in batch]
+        teacher_views = None
+        if args.global_view_policy == 'asymmetric_clean_teacher_timewarp_student':
+            if args.synthetic:
+                teacher_views = [view.clone() for view in views[:2]]
+            else:
+                if len(views) != 4:
+                    raise ValueError('Asymmetric dataset must return two student and two teacher globals')
+                teacher_views = views[2:]
+                views = views[:2]
         patch_count = (args.size // args.patch_size) ** 2
         if args.mask_policy == 'fixed_block':
             masks = fixed_count_masks(args.batch_size, patch_count, args.mask_min,
@@ -575,6 +779,19 @@ def main():
         context = (torch.autograd.detect_anomaly()
                    if args.anomaly_step == step + 1 else nullcontext())
         branch_hooks = []
+        stem_traces = {'embedding': [], 'normalization': []}
+        stem_norm_inputs = []
+        if args.trace_stem_boundaries and args.anomaly_step == step + 1:
+            def capture_stem(key):
+                def capture(_module, inputs, output):
+                    stem_traces[key].append(output)
+                    if key == 'normalization':
+                        stem_norm_inputs.append(inputs[0])
+                return capture
+            branch_hooks.append(model.student.backbone.patch_embed.register_forward_hook(
+                capture_stem('embedding')))
+            branch_hooks.append(model.student.backbone.patch_norm.register_forward_hook(
+                capture_stem('normalization')))
         changed_policies = []
         if args.diagnose_detach_branches and args.anomaly_step == step + 1:
             for block in model.student.backbone.blocks:
@@ -589,28 +806,126 @@ def main():
             for block in model.student.backbone.blocks:
                 changed_policies.append((block, block.residual_gradient_policy))
                 block.residual_gradient_policy = 'bounded_branch'
+        original_ibot_policy = model.ibot_residual_gradient_policy
+        original_ibot_cut = model.ibot_gradient_cut_block
+        if args.diagnose_bounded_ibot_branches and args.anomaly_step == step + 1:
+            model.ibot_residual_gradient_policy = 'bounded_branch'
+        if (args.diagnose_ibot_gradient_cut_block is not None and
+                args.anomaly_step == step + 1):
+            model.ibot_gradient_cut_block = args.diagnose_ibot_gradient_cut_block
         with context:
             metrics = model(views, masks, temporal_masks=temporal_masks,
+                            teacher_views=teacher_views,
                             return_components=(args.anomaly_step == step + 1 or
-                                               args.gradient_fusion != 'sum'))
+                                               args.gradient_fusion != 'sum' or
+                                               args.branch_align_gradient_policy != 'sum'))
+            model.ibot_residual_gradient_policy = original_ibot_policy
+            model.ibot_gradient_cut_block = original_ibot_cut
             for hook in branch_hooks:
                 hook.remove()
             for block, policy in changed_policies:
                 block.residual_gradient_policy = policy
             if args.anomaly_step == step + 1:
+                if args.trace_stem_boundaries:
+                    for loss_name in ('_dino_raw', '_ibot_raw', '_koleo_raw'):
+                        for key, values in stem_traces.items():
+                            grads = torch.autograd.grad(
+                                metrics[loss_name], values, retain_graph=True,
+                                allow_unused=True)
+                            for index, grad in enumerate(grads):
+                                if grad is None:
+                                    continue
+                                finite = torch.isfinite(grad)
+                                finite_values = grad[finite]
+                                print('STEM_BOUNDARY', loss_name, key, index,
+                                      'finite_fraction=', float(finite.float().mean()),
+                                      'max_finite=', float(finite_values.abs().max())
+                                      if finite_values.numel() else None,
+                                      flush=True)
+                                if (loss_name == '_ibot_raw' and index >= 2 and
+                                        temporal_masks is not None and
+                                        key == 'embedding'):
+                                    grid = args.size // args.patch_size
+                                    masked = temporal_masks[index - 2].reshape(
+                                        args.time_steps * args.batch_size, 1,
+                                        grid, grid).expand_as(grad)
+                                    print('STEM_MASK_FINITE', index,
+                                          'nonfinite_masked=', int((~finite & masked).sum()),
+                                          'nonfinite_visible=', int((~finite & ~masked).sum()),
+                                          flush=True)
+                                if loss_name == '_ibot_raw' and key == 'normalization':
+                                    x = stem_norm_inputs[index].detach().double()
+                                    dy = grad.detach().double()
+                                    norm = model.student.backbone.patch_norm
+                                    if hasattr(norm, 'norm') and isinstance(
+                                            norm.norm, torch.nn.LayerNorm):
+                                        # ChannelLayerNorm2d: independent LN at each
+                                        # time/sample/patch, channel is the last axis.
+                                        x = x.permute(0, 2, 3, 1)
+                                        dy = dy.permute(0, 2, 3, 1)
+                                        axes = (-1,)
+                                        gamma = norm.norm.weight.detach().double()
+                                        eps = norm.norm.eps
+                                        kind = 'channel_layer_norm'
+                                    else:
+                                        axes = (0, 2, 3)
+                                        gamma = norm.weight.detach().double()[
+                                            None, :, None, None]
+                                        eps = norm.eps
+                                        kind = 'batch_norm'
+                                    centered = x - x.mean(dim=axes, keepdim=True)
+                                    variance = centered.square().mean(dim=axes, keepdim=True)
+                                    inv_std = torch.rsqrt(variance + eps)
+                                    normalized = centered * inv_std
+                                    weighted_dy = dy * gamma
+                                    dx = inv_std * (
+                                        weighted_dy - weighted_dy.mean(
+                                            dim=axes, keepdim=True) -
+                                        normalized * (weighted_dy * normalized).mean(
+                                            dim=axes, keepdim=True))
+                                    fp32_max = torch.finfo(torch.float32).max
+                                    print('STEM_NORM_FP64', index, kind,
+                                          'min_variance=', float(variance.min()),
+                                          'max_abs_dx=', float(dx.abs().max()),
+                                          'over_fp32=', int((dx.abs() > fp32_max).sum()),
+                                          'finite=', bool(torch.isfinite(dx).all()),
+                                          flush=True)
                 patch_weight = model.student.backbone.patch_embed.weight
                 for name in ('_dino_raw', '_ibot_raw', '_koleo_raw',
-                             '_diversity_raw', 'loss'):
+                             '_diversity_raw', '_branch_alignment_raw',
+                             'loss'):
                     if name not in metrics:
                         continue
                     with torch.autograd.set_detect_anomaly(False):
                         grad = torch.autograd.grad(
                             metrics[name], patch_weight, retain_graph=True,
                             allow_unused=True)[0]
+                    if grad is None:
+                        print('GRAD_DIAG', name, 'disconnected=True', flush=True)
+                        continue
                     print('GRAD_DIAG', name,
                           'finite=', bool(torch.isfinite(grad).all()),
                           'max=', float(grad.nan_to_num().abs().max()),
                           flush=True)
+                if '_branch_alignment_raw' in metrics:
+                    selected_branch = {
+                        'stem': model.student.backbone.patch_embed.weight,
+                        'last_q': model.student.backbone.blocks[-1].attn.q.linear.weight,
+                        'last_projection': model.student.backbone.blocks[-1].attn.proj.linear.weight,
+                    }
+                    for objective in ('_dino_raw', '_branch_alignment_raw'):
+                        with torch.autograd.set_detect_anomaly(False):
+                            gradients = torch.autograd.grad(
+                                metrics[objective],
+                                tuple(selected_branch.values()),
+                                retain_graph=True, allow_unused=True)
+                        for layer_name, gradient in zip(selected_branch, gradients):
+                            if gradient is not None:
+                                print('BRANCH_GRAD', objective, layer_name,
+                                      'l2=', float(gradient.nan_to_num().norm()),
+                                      'max=', float(gradient.nan_to_num().abs().max()),
+                                      'finite=', bool(torch.isfinite(gradient).all()),
+                                      flush=True)
                 selected = {
                     name: parameter for name, parameter in
                     model.student.named_parameters()
@@ -633,7 +948,7 @@ def main():
                               'max=', float(grad.nan_to_num().abs().max()),
                               flush=True)
                 for name in ('_dino_raw', '_ibot_raw', '_koleo_raw',
-                             '_diversity_raw'):
+                             '_diversity_raw', '_branch_alignment_raw'):
                     metrics.pop(name, None)
             fusion_diagnostics = None
             if args.gradient_fusion != 'sum':
@@ -641,7 +956,7 @@ def main():
                                metrics['_koleo_raw'])
                 if '_gram_raw' in metrics:
                     global_loss = global_loss + model.gram_weight * metrics['_gram_raw']
-                local_loss = metrics['_ibot_raw']
+                local_loss = model.ibot_weight * metrics['_ibot_raw']
                 if '_diversity_raw' in metrics:
                     local_loss = (local_loss + model.ibot_diversity_weight *
                                   metrics['_diversity_raw'])
@@ -657,14 +972,33 @@ def main():
                              '_diversity_raw', '_gram_raw'):
                     metrics.pop(name, None)
             else:
-                metrics['loss'].backward()
+                if args.branch_align_gradient_policy == 'last_attention_only':
+                    backward_branch_attention_only(model, metrics)
+                    metrics.pop('_branch_alignment_raw', None)
+                    for name in ('_dino_raw', '_ibot_raw', '_koleo_raw'):
+                        metrics.pop(name, None)
+                else:
+                    metrics['loss'].backward()
         gradients_finite = torch.stack([
             torch.isfinite(parameter.grad).all()
             for parameter in model.student.parameters()
             if parameter.grad is not None]).all()
         if not bool(gradients_finite):
+            offenders = [name for name, parameter in
+                         model.student.named_parameters()
+                         if parameter.grad is not None and
+                         not bool(torch.isfinite(parameter.grad).all())]
+            if args.monitor_numerics:
+                failure_path = args.output / f'failure_before_step_{step+1:06d}.pt'
+                torch.save({'model':model.state_dict(),'optimizer':optimizer.state_dict(),
+                            'steps':step,'failed_step':step+1,
+                            'config':{k:str(v) if isinstance(v,Path) else v for k,v in vars(args).items()},
+                            'cpu_rng':before_cpu_rng,'cuda_rng':before_cuda_rng,
+                            'offenders':offenders,
+                            'snapshot_boundary':'parameters before optimizer/EMA update; inspect forward-mutated buffers before resuming'},failure_path)
             raise FloatingPointError(
                 f'Non-finite student gradient at step {step + 1}; '
+                f'first affected parameters: {offenders[:12]}; '
                 'optimizer and EMA teacher were not updated')
         freeze_prototypes = (args.steps_per_epoch is not None and
                              step // args.steps_per_epoch <
@@ -672,10 +1006,15 @@ def main():
         if freeze_prototypes:
             model.student.dino_head.prototypes.grad = None
             model.student.ibot_head.prototypes.grad = None
+        if args.monitor_numerics:
+            from .numerical_monitor import gradient_summary
+            numerical_gradients = gradient_summary(model.student)
         optimizer.step()
         model.after_optimizer_step()
         row = {'step': step + 1, **{name: float(value.detach())
                                    for name, value in metrics.items()}}
+        if args.monitor_numerics:
+            row['numerical_gradients'] = numerical_gradients
         row['lr_effective'] = effective_lr
         row['teacher_temp_effective'] = model.teacher_temp
         row['teacher_momentum_effective'] = model.teacher_momentum

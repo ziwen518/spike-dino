@@ -1,284 +1,101 @@
-<div align="center">
+# main_code -- Arm I（SEW-ResNet18）核心架构代码
 
-# Spike-DINO
+本目录是 **Arm I**（`sdino_v7_koleo_balance_nodc_c10_e300_20261112`）那份代码的本地副本，**只含代码，不含任何 checkpoint / 数据 / 日志**。每个文件的字节数与 sha256 见 `MANIFEST.md`（那张表由脚本实测生成，不是手抄的）。
 
-### Event-native self-distillation with spike-driven evidence transport
+## 1. 一句话说明这套代码是什么
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.2%2B-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
-[![SpikingJelly](https://img.shields.io/badge/SpikingJelly-0.0.0.0.14-18A999)](https://github.com/fangwei123456/spikingjelly)
-![Tests](https://img.shields.io/badge/tests-113%20passed-2ea44f)
-![Status](https://img.shields.io/badge/status-research%20preview-f0ad4e)
+Arm I = **Arm F + 一个 flag**：`--no-center-rate`。也就是说，v7 的 DINO-on-sphere 方法里去掉"球面 DC 原点减法"，其余完全相同。
 
-**A research implementation of DINO-style teacher–student learning for event-camera data using spiking neural networks.**
+三个组件（本项目的全部方法组合）：
 
-[Method](#method) · [Quick start](#quick-start) · [Data](#datasets) · [Evaluation](#evaluation) · [Reproducibility](#reproducibility) · [Roadmap](#roadmap)
-
-</div>
-
-> [!IMPORTANT]
-> This repository is an active research preview. It does not yet claim a CVPR-ready result or a full-scale reproduction of DINOv2/DINOv3. Every result below is labeled by protocol and limitation.
-
-## Why Spike-DINO?
-
-DINO learns semantic representations by matching a student to an exponential-moving-average teacher across different views. Directly replacing its backbone with an SNN is insufficient: event observations are temporal and sparse, attention contains multi-bit coincidence information, mask tokens can become false content sources, and small residual scales can prevent useful spike evidence from reaching later layers.
-
-Spike-DINO provides a controlled platform to study these problems with:
-
-| Capability | What is implemented |
-|---|---|
-| Spiking self-distillation | Student/EMA-teacher training with global DINO and dense iBOT objectives |
-| Event-native views | Spatial, temporal, polarity, thinning, masking, and shared-core policies |
-| Full-width prototype | 12 blocks, width 384, 6 heads, MLP width 1536 |
-| Evidence Spike Block | Visible-event normalized attention, ON/OFF spike projection, bounded membrane writes |
-| Fair baselines | SpikeCLR-compatible SEW-ResNet18 path and count-preserving Spikformer operator control |
-| Diagnostics | Feature collapse, attention paths, event ablation, dense correspondence, gradients, PCA |
-| Reproducibility | Fixed manifests, resumable checkpoints, frozen probes, deterministic cohort seeds |
-
-## Method
-
-The experimental Evidence Spike Block targets the information path rather than a single training hyperparameter.
-
-### 1. Visible-event evidence
-
-Only event bins actually visible to the student supply keys and values. Masked positions remain valid queries, but hidden events, CLS tokens, and mask tokens cannot masquerade as observed content.
-
-### 2. Count-preserving spiking attention
-
-Binary `Q`, `K`, and `V` spikes are accumulated across visible time–token support:
-
-$$
-C=\sum_{\tau,j} O_{\tau j}K_{\tau j}V_{\tau j}^{\top},\qquad
-z=\sum_{\tau,j} O_{\tau j}K_{\tau j}.
-$$
-
-Each query receives normalized evidence
-
-$$
-r_{ti}=\frac{Q_{ti}^{\top}C}{\max(Q_{ti}^{\top}z,1)}.
-$$
-
-The accumulator preserves multi-bit coincidence counts. It does not apply an intermediate LIF to `KᵀV`. This matters because `Q(KᵀV)=(QKᵀ)V` in exact linear arithmetic; the harmful operation in the earlier prototype was premature thresholding, not the contraction order itself.
-
-### 3. Bipolar spike transport
-
-Query evidence is centered across channels and encoded as two binary streams:
-
-$$
-S^+=SN(\mathrm{ReLU}(\mathrm{RMS}(r-\bar r))),\qquad
-S^-=SN(\mathrm{ReLU}(-\mathrm{RMS}(r-\bar r))).
-$$
-
-A shared projection produces the signed current `W S⁺ − W S⁻`. Learned synapses consume binary spikes while preserving both positive and negative evidence.
-
-### 4. Energy-bounded membrane write
-
-The projected current is written to the real-valued membrane carrier with a depth-aware energy bound. This avoids both near-zero LayerScale writes and uncontrolled residual amplification. The next learned synapse receives a freshly emitted spike train.
-
-The implementation lives in [evidence_block.py](spike_dino/evidence_block.py), with backbone integration in [spiking_vit.py](spike_dino/spiking_vit.py). Detailed assumptions and falsification tests are documented in [the design note](docs/evidence_spike_block.md).
-
-## What is actually spiking?
-
-An SNN backbone does not imply that every intermediate value is binary. This repository states the boundary explicitly:
-
-| Interface | Representation |
-|---|---|
-| Q/K/V projection inputs and outputs | Binary spikes |
-| `KᵀV`, key sums, query normalization | Integer counts / real currents |
-| Evidence centering and RMS normalization | Real membrane currents |
-| Output projection input | Binary ON/OFF spikes |
-| Projection output and residual carrier | Signed real currents |
-| FFN learned-matrix inputs | Binary spikes |
-| DINO/iBOT probabilities and losses | Continuous training readout |
-
-The accurate description is **spike-driven learned synapses with real-valued membrane and training state**, rather than “every layer-to-layer value is binary.”
-
-## Current evidence
-
-### Mechanism checks
-
-- 113 tests pass, including dense/reference operator equivalence, hidden-event isolation, batch isolation, duplicate-evidence invariance, binary synapse inputs, finite backward passes, and exact checkpoint resume.
-- A full-width real CIFAR10-DVS step (`T=4`, batch 16, 12×384/6) completed with finite gradients.
-- Frozen-QKV diagnostics show that count-preserving attention retains substantially more cross-view correspondence than the earlier path with an intermediate context LIF.
-
-### Preliminary 281-step diagnostic
-
-The table below uses one seed and an internal labeled holdout from the CIFAR10-DVS training partition. It is **not** a benchmark result, does not access the official test set, and is too short for a paper claim.
-
-| Block / attention path | CLS kNN | CLS linear | Patch kNN | Patch linear | CLS effective rank |
-|---|---:|---:|---:|---:|---:|
-| Earlier context-LIF baseline | 18.7 | **23.8** | 24.5 | **26.4** | 270.0 |
-| Spikformer count-operator control | **19.4** | 22.8 | **25.3** | **26.4** | 270.6 |
-| Evidence Spike Block v0 | 14.6 | 16.8 | 19.4 | 21.1 | **351.6** |
-
-The v0 block preserves feature diversity but currently reduces frozen classification accuracy. This rules out the present combination as a finished method. The next experiments must isolate visible support, query normalization, bipolar encoding, and residual writing before longer training.
-
-## Qualitative representation diagnostics
-
-These visualizations use teacher patch features from controlled CIFAR10-DVS runs after 562 optimizer steps. RGB channels are the first three PCA components. PCA is fitted separately for each compared model or grid, so exact colors must not be compared across columns; the meaningful signal is spatial structure and consistency.
-
-### Representation evolution through spiking blocks
-
-![Patch RGB-PCA across spiking layers](assets/patch_rgb_pca_layer_progression.png)
-
-The rows show real DVS recordings; columns trace patch features through blocks 0, 6, 11 and the final representation. The figure is a diagnostic of spatial organization, not evidence of semantic segmentation.
-
-### Patch resolution and the visible “mosaic”
-
-![Patch-grid resolution comparison](assets/patch_grid_rgb_pca_resolution.png)
-
-At 128×128 input resolution, patch16 creates an 8×8 feature grid while patch8 creates a 16×16 grid. Upsampling either grid cannot recover within-patch detail, which is why the RGB-PCA map looks blocky. Finer maps require smaller patches or a hierarchical decoder, and should be compared at matched compute.
-
-## Quick start
-
-### Installation
-
-Python 3.10 or newer is recommended.
-
-```bash
-git clone https://github.com/ziwen518/spike-dino.git
-cd spike-dino
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-python -m pip install -r requirements.txt
-```
-
-The code has been exercised with Python 3.12, PyTorch 2.11, SpikingJelly 0.0.0.0.14, and NumPy 1.26.
-
-### Run the tests
-
-```bash
-python -m pytest -q
-```
-
-### Synthetic wiring check
-
-This command verifies the training path; synthetic inputs are not evidence of representation quality.
-
-```bash
-python -m spike_dino.pretrain_v3 \
-  --synthetic --device cpu --output runs/smoke \
-  --size 32 --patch-size 8 --local-size 16 \
-  --time-steps 2 --batch-size 2 --local-crops 0 \
-  --depth 2 --dim 64 --heads 4 --head-hidden 128 \
-  --bottleneck 32 --prototypes 128 --steps 1 --no-checkpoint
-```
-
-Add `--block-variant evidence` for the proposed block. Use `--attention-variant spikformer_count` with the standard block for the count-preserving operator control.
-
-## Datasets
-
-Raw data is intentionally not included. Download metadata and checksums are stored in `configs/`; deterministic split manifests contain relative paths and labels only.
-
-| Dataset | Event format | Repository support |
+| 组件 | 位置 | 作用 |
 |---|---|---|
-| CIFAR10-DVS | AEDAT2 | download, manifest, pretrain, frozen probe |
-| N-Caltech101 | 5-byte events | manifest, pretrain, few-shot cohorts |
-| N-MNIST | binary events | download metadata, manifest, pretrain subset |
-| DVS-Gesture | Tonic-compatible events | download metadata, subject-aware manifest |
+| KoLeo floor（`--koleo-*`） | `spike_dino/sdino_v7.py` | 特征均匀性正则（`koleo_floor`），v7 第一个正收益项 |
+| `proto_balance`（`--proto-balance-weight`） | `spike_dino/sdino_v7.py` | 原型边际平衡正则，第一个同时推动机制与精度的 v7 项 |
+| 球面 DC 原点减法（`--center-rate` / 本 arm 的 `--no-center-rate`） | `spike_dino/sdino_v7.py:484-498` | 特征级 EMA 原点；**Arm I 把它关掉了** |
+
+关掉之后 `spherical_feature(rate, None, False)` 退化成 `F.normalize(rate)`，`feature_center_norm` 全程记 0。这是本 arm 唯一被操纵的东西。
+
+## 2. 关键文件
+
+| 文件 | 角色 |
+|---|---|
+| `spike_dino/sdino_v7.py` | **模型本体**：Teacher/Student、球面特征、原型、`proto_balance`、KoLeo |
+| `spike_dino/spiking_vit.py` | Spiking ViT（SPS stem、`spikformer_count`、残差策略）；`sdino_v4` 会 import 它 |
+| `spike_dino/sdino_v4.py` | Encoder wrapper 与 `spike_dino_v7` 依赖的 helper |
+| `spike_dino/sdino_sew.py` | **SEW-ResNet18 trunk** |
+| `third_party/eventclr/models/sew_resnet.py` | 上游 SEW-ResNet18 定义（`spike_dino/core.py` 引用） |
+| `scripts/train_sdino_v7.py` | **训练器**（Arm I 版本，含 `--no-center-rate` 与全部 v7 flag） |
+| `spike_dino/data.py` / `views_v4.py` / `views_v5.py` | CIFAR-10-DVS 读取与 multi-crop / temporal DINO 视图 |
+| `spike_dino/probe_v4.py` | e20/e50/…/e300 的 kNN / linear / rank 探针 |
+| `scripts/eval_v7_downstream.py` + `scripts/eval_c10_v4.py` | few-shot / 官方 test 的 LP & FT 评测 |
+
+## 3. 复现命令（Arm I 原样）
 
 ```bash
-python -m scripts.download_cifar10dvs --help
-python -m scripts.build_benchmark_manifests --help
-python -m scripts.build_fewshot_manifests --help
+python -m scripts.train_sdino_v7 \
+  --output runs/sdino_v7_koleo_balance_nodc_c10_e300_20261112 \
+  --dataset cifar10dvs --backbone sew_resnet18 \
+  --epochs 300 \
+  --batch-size 64 --base-lr 2e-3 --warmup-epochs 10 \
+  --precision bf16 --teacher-bn-mode train \
+  --proto-count 256 --no-center-rate \
+  --teacher-temp 0.04 0.07 --teacher-temp-warmup-epochs 30 --student-temp 0.1 \
+  --koleo-weight 0.1 --koleo-distance-floor 0.1 \
+  --koleo-auto-weight --koleo-probe-target .25 --koleo-probe-cap 1.0 \
+  --koleo-grad-probe 20 \
+  --proto-balance-weight 0.333125 --balance-temp .1 \
+  --save-at-steps 20 40 80 140 \
+  --probe-at-start --probe-every 10 --gate-epoch 9999 \
+  --workers 12 --log-every 20
 ```
 
-For comparison with SpikeCLR, each dataset should be pretrained and evaluated separately. A multi-domain model must be reported as a different protocol.
+把 `--proto-count 256 --no-center-rate` 那一行里的 `--no-center-rate` 换成 `--center-rate`（或直接删掉该 flag）就是 **Arm F**，两者是本项目唯一一对干净的单变量对照。
 
-## Training
+## 4. Arm I 的最终读数（记录用，不在本目录重新计算）
 
-A compact real-event example follows. It is an engineering recipe, not the final recommended schedule.
+dev probe（concat kNN / linear / rank）：
 
-```bash
-python -m spike_dino.pretrain_v3 \
-  --dataset-root dataset/CIFAR10DVS \
-  --manifest-path configs/splits/cifar10dvs_seed42.json \
-  --output runs/cifar10dvs_evidence --device cuda:0 \
-  --size 128 --patch-size 16 --local-size 64 \
-  --global-view-policy shared_core --global-crop-scale 0.32 1.0 \
-  --global-time-range 0.5 1.0 --time-steps 4 --batch-size 16 \
-  --local-crops 0 --depth 12 --dim 384 --heads 6 \
-  --block-variant evidence --norm-policy layer_norm \
-  --head-hidden 2048 --head-layers 3 --bottleneck 256 \
-  --prototypes 65536 --prototype-readout cosine \
-  --target-policy sinkhorn --mask-policy fixed_block \
-  --steps 562 --checkpoint-every 50
-```
+| epoch | Arm I | Arm F | I − F（linear） |
+|---|---|---|---|
+| e150 | 54.50 / 60.03 / 46.40 | 53.70 / 59.27 / 35.59 | +0.76 |
+| e300（PRIMARY） | 56.50 / 61.47 / 56.43 | 55.10 / 59.10 / 44.74 | +2.37 |
 
-Outputs are written only to the requested run directory. Resume validation checks architecture and schedule fields before restoring optimizer, student, teacher, and center state.
+e140–e300 之间 17 个同 epoch 探针，Arm I 全部为正（均值 +2.01，从未为负），centred rank 每个探针都高 +11.0 到 +11.7。
 
-## Evaluation
+- 官方 1000 条 test 的全标签 LP：**58.80**，与 Arm F 的 58.80 **完全相等**（look TEN）→ 按本项目判例记作 **NEGATIVE**：DC 减法既不承重也无害。
+- 10-seed few-shot（1 / 9 / 45 shot）：**22.39 / 35.52 / 46.10**。
+- 全标签 concat linear 对 v6 对比学习对照组（61.10）的差距 −1.50，**落在 3.60 重跑带之内**。
 
-Frozen CLS representations:
+结论写在 `AGENTS.md` §4：Arm I 已 CLOSED，方法就是 **两个组件（KoLeo + `proto_balance`）加一个中性默认值**。
 
-```bash
-python -m spike_dino.evaluate_v3 \
-  --dataset-root dataset/CIFAR10DVS \
-  --checkpoint runs/cifar10dvs_evidence/last.pt \
-  --output runs/cifar10dvs_evidence/frozen_cls.json \
-  --device cuda:0 --feature-source cls \
-  --cohort-seed 42 --probe-seed 42
-```
+## 5. 一个重要警告：这套代码不是服务器当前的代码
 
-Use `--feature-source patch_mean` for dense patch representations. Scripts for layer-wise PCA, RGB-PCA maps, attention-path auditing, event ablation, gradient diagnostics, and geometric correspondence live under `scripts/`.
+服务器上现在的 `spike_dino/sdino_v7.py` 已经是 **51,663 B `DCC5CA811A88CE0B`**（local-pred 分支），`scripts/train_sdino_v7.py` 是 **58,435 B `0963E6B0D13A5289`**，`spiking_vit.py` 42,380 B，`sdino_v4.py` 29,219 B —— 都**不是** Arm I 跑的那一份。
 
-## Reproducibility
+所以本目录里决定模型行为的四个文件不是从服务器现在的副本取的，而是从本地归档里取回的 Arm I 原件，并逐个对上了 `AGENTS.md` 记录的 sha256：
 
-Before comparing two methods, keep these fields identical:
+| 文件 | 字节 | sha256[0:16] | 取自 |
+|---|---|---|---|
+| `spike_dino/sdino_v7.py` | 47,646 | `EDD4549DA2EF1E22` | `tmp/_deployed/sdino_v7.py` |
+| `scripts/train_sdino_v7.py` | 51,372 | `D1FBD0ABD3D9707D` | `tmp/_deployed/train_sdino_v7.py` |
+| `spike_dino/spiking_vit.py` | 38,919 | `CEC65516B853FE7F` | `tmp/_srv_spiking_vit.py` |
+| `spike_dino/sdino_v4.py` | 27,250 | `2ADC1F67A66219C5` | `tmp/_srv_sdino_v4.py` |
 
-- dataset manifest and hash;
-- pretraining seed, number of optimizer steps, and batch size;
-- global/local view and temporal support policies;
-- masking policy and teacher patch aggregation;
-- head depth, bottleneck width, prototype count, and readout;
-- optimizer, EMA, temperature, and weight-decay schedules;
-- frozen-probe cohort seed and probe initialization seed.
+其余文件（`data.py`、`views_*.py`、`probe_v4.py`、`pretrain_v3.py`、`sdino_sew.py`、`third_party/`、eval 脚本等）是服务器**当前**副本，它们没有 Arm I 时期的哈希记录，`MANIFEST.md` 里单独列了一张表标明这一点。**只有上面四行可以被引用为"与 Arm I 同源"。**
 
-The official test split should remain untouched during method development. Internal holdout metrics must be labeled as such.
+## 6. 未包含的东西
 
-## Repository structure
+- `runs/`、`logs/`、任何 `*.pt`。Arm I 的 checkpoint 是 `runs/sdino_v7_koleo_balance_nodc_c10_e300_20261112/epoch_300.pt`（293,446,507 B `4BC6DB9F519E504C`），留在服务器上。
+- CIFAR-10-DVS 数据与 manifest、`third_party` 预训练权重。
+- 训练用的 `.cmd` 启动器（那些在 `tmp/`）。
 
-```text
-spike_dino/
-├── spike_dino/                 # models, objectives, data, training, evaluation
-│   ├── evidence_block.py       # proposed evidence transport block
-│   ├── spiking_vit.py          # spiking ViT backbone and attention controls
-│   ├── dinov3.py               # student/teacher prototype and heads
-│   ├── pretrain_v3.py          # resumable self-supervised trainer
-│   └── evaluate_v3.py          # fixed-cohort frozen evaluation
-├── scripts/                    # preparation, diagnostics, PCA, and audits
-├── configs/                    # checksums and deterministic manifests
-├── tests/                      # unit and end-to-end resume tests
-├── third_party/eventclr/       # minimal SpikeCLR-compatible baseline snapshot
-└── docs/                       # architecture and research design notes
-```
+## 7. 自检
 
-## Roadmap
+在本目录下（`sys.path` 指到本目录）已实测通过：
 
-- [x] Full-width spiking teacher/student training path
-- [x] DINO global and iBOT dense objectives
-- [x] Fixed manifests for four SpikeCLR event datasets
-- [x] Count-preserving Spikformer operator control
-- [x] Evidence Spike Block v0 and falsification tests
-- [ ] Component-wise ablation of evidence transport
-- [ ] Stable improvement across at least two random seeds
-- [ ] Full SpikeCLR-matched LP/FT/few-shot protocols
-- [ ] Multi-dataset main table and transfer evaluation
-- [ ] ANN/SNN compute, memory, spike-rate, and energy accounting
-- [ ] DINO-style dense RGB-PCA and correspondence figures for final models
+- `python -m py_compile` 全部文件通过；
+- 以下模块全部 import 成功：`spike_dino.{core, benchmark_manifest, data, gradient_fusion, optimizer_precision, pretrain_v3, views_v4, views_v5, probe_v4, downstream, sdino_sew, spiking_vit, sdino_v4, sdino_v7}` 与 `scripts.{train_generalization_reference, train_sdino_v4, eval_c10_v4, eval_v7_downstream, train_sdino_v7}`；
+- `from spike_dino.sdino_v7 import SpikeDinoV7` 成功。
 
-## Citation
-
-This project does not yet have an archival paper. Please cite the repository commit when using the current research preview. A BibTeX entry will be added with the paper release.
-
-## Third-party code and licensing
-
-`third_party/eventclr/` contains the minimal EventCLR-derived components used by the SpikeCLR-compatible baseline. Provenance and license are recorded in [NOTICE.md](third_party/eventclr/NOTICE.md) and [LICENSE](third_party/eventclr/LICENSE).
-
-No license is granted for the remaining repository code unless the repository owner adds one explicitly.
-
----
-
-<div align="center">
-Built for transparent, falsifiable research on event-based self-supervised learning.
-</div>
+依赖：`torch`、`spikingjelly`、`numpy`、`paramiko`（仅上传用）。本地用 `D:/APP/Anaconda3/python.exe`，服务器用 `.venv\Scripts\python.exe`。

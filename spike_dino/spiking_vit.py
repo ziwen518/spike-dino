@@ -78,6 +78,53 @@ class TokenBatchNorm(nn.BatchNorm1d):
         return super().forward(x.reshape(-1, c)).reshape(t, b, n, c)
 
 
+class SpikingPatchStem(nn.Module):
+    """Hierarchical conv-BN-LIF tokenizer with binary stage communication.
+
+    The four stride-2 stages preserve the ViT-S/16 token grid while adding
+    the local inductive bias used by strong spiking Transformer baselines.
+    Batch-normalized convolution currents and LIF membrane states are real;
+    every tensor crossing from one stage into the next is a binary spike.
+    """
+
+    def __init__(self, in_channels, dim, stages=4):
+        super().__init__()
+        if stages < 1 or dim % (2 ** (stages - 1)):
+            raise ValueError('SPS width must divide its power-of-two stage schedule')
+        widths = [dim // (2 ** (stages - index - 1))
+                  for index in range(stages)]
+        blocks = []
+        source = in_channels
+        for width in widths:
+            blocks.append(nn.ModuleDict({
+                'conv': nn.Conv2d(source, width, 3, 2, 1, bias=False),
+                'norm': nn.BatchNorm2d(width),
+                'spike': _lif(),
+            }))
+            source = width
+        self.blocks = nn.ModuleList(blocks)
+        self.in_channels = in_channels
+        self.out_channels = dim
+        self.stride = 2 ** stages
+
+    @property
+    def weight(self):
+        """Compatibility handle for diagnostics that inspect the input stem."""
+        return self.blocks[0]['conv'].weight
+
+    def forward(self, frames):
+        if frames.ndim != 5 or frames.shape[2] != self.in_channels:
+            raise ValueError('SPS expects event frames [T,B,C,H,W]')
+        t, b = frames.shape[:2]
+        spikes = frames
+        for block in self.blocks:
+            current = block['conv'](spikes.flatten(0, 1))
+            current = block['norm'](current)
+            current = current.reshape(t, b, *current.shape[1:])
+            spikes = block['spike'](current)
+        return spikes
+
+
 class SpikeLinear(nn.Module):
     """The output crossing into the next synaptic layer is a binary spike."""
 
@@ -102,7 +149,11 @@ class SpikeDrivenAttention(nn.Module):
                            'token_pair', 'token_pair_centered',
                            'matrix_value_skip', 'matrix_visible_keys',
                            'matrix_cls_wta', 'matrix_cls_wta_temporal',
-                           'matrix_count', 'spikformer_count'):
+                           'matrix_count', 'spikformer_count',
+                           'spikformer_count_visible',
+                           'spikformer_count_preproj_or',
+                           'spikformer_count_temporal',
+                           'spike_softmax'):
             raise ValueError(f'Unknown spike attention variant: {variant}')
         self.variant = variant
         self.heads = heads
@@ -113,11 +164,13 @@ class SpikeDrivenAttention(nn.Module):
         self.context_spike = _lif(threshold=.005)
         self.attention_output_spike = _lif(threshold=.49)
         self.count_output_spike = _lif(threshold=.5)
+        self.softmax = nn.Softmax(dim=-1)
         self.pair_spike = _lif(threshold=.49)
         self.pair_value_spike = _lif(threshold=.005)
         self.proj = SpikeLinear(dim, dim)
 
-    def forward(self, x, output_current=False, masked_tokens=None):
+    def forward(self, x, output_current=False, masked_tokens=None,
+                observed_keys=None):
         t, b, n, c = x.shape
         shape = (t, b, n, self.heads, self.head_dim)
         q = self.q(x).reshape(shape).permute(0, 1, 3, 2, 4)
@@ -132,6 +185,21 @@ class SpikeDrivenAttention(nn.Module):
             key_mask = masked_tokens[None, :, None, :, None]
             k = k.masked_fill(key_mask, 0)
             v = v.masked_fill(key_mask, 0)
+        if self.variant == 'spikformer_count_visible':
+            if (observed_keys is None or observed_keys.shape != (t, b, n) or
+                    observed_keys.dtype != torch.bool):
+                raise ValueError('Count-visible attention needs boolean [T,B,N] observed keys')
+            hidden = ~observed_keys[:, :, None, :, None]
+            k = k.masked_fill(hidden, 0)
+            v = v.masked_fill(hidden, 0)
+        if self.variant in ('token_pair', 'token_pair_centered') and masked_tokens is not None:
+            if masked_tokens.shape != (b, n) or masked_tokens.dtype != torch.bool:
+                raise ValueError('masked_tokens must be boolean [B,N]')
+            # Pairwise query-key paths must not let an unobserved target token
+            # provide keys or values to itself or to other masked queries.
+            hidden = masked_tokens[None, :, None, :, None]
+            k = k.masked_fill(hidden, 0)
+            v = v.masked_fill(hidden, 0)
         if self.variant in ('token_pair', 'token_pair_centered'):
             # Encode a token-to-token QK coincidence matrix, then collect
             # visible V spikes separately for every query position. The
@@ -150,15 +218,34 @@ class SpikeDrivenAttention(nn.Module):
             # is integrated, re-encoded, then multiplied by binary Q.
             gate = self.context_spike((k * v).sum(dim=-2, keepdim=True))
             out = q * gate
-        elif self.variant in ('matrix_count', 'spikformer_count'):
+        elif self.variant == 'spike_softmax':
+            # Q/K/V synapses receive binary spikes. Softmax and weighted
+            # evidence are internal real currents; re-encode with LIF before
+            # the learned output projection. This is an ANN-like attention
+            # operator boundary, not an all-binary intermediate computation.
+            scores = (q @ k.transpose(-1, -2)) / math.sqrt(self.head_dim)
+            out = self.attention_output_spike(self.softmax(scores) @ v)
+        elif self.variant in ('matrix_count', 'spikformer_count',
+                              'spikformer_count_visible',
+                              'spikformer_count_preproj_or',
+                              'spikformer_count_temporal'):
             # Operator controls: retain integer coincidence counts until
             # after Q(K^T V). The official Spikformer SSA uses scale .125
             # and threshold .5 here, without an intermediate context LIF.
             # This matches its aggregation operator, not its full backbone
             # (our projection norms and stem still differ).
-            out = q @ (k.transpose(-1, -2) @ v)
+            context = k.transpose(-1, -2) @ v
+            if self.variant == 'spikformer_count_temporal':
+                # Same binary Q/K/V and synaptic dimensions; average event
+                # coincidence counts across observed T bins before each
+                # time-specific query. The scale matches per-time count SSA.
+                context = context.mean(0, keepdim=True)
+            out = q @ context
             out = (self.count_output_spike(out * .125)
-                   if self.variant == 'spikformer_count' else
+                   if self.variant in ('spikformer_count',
+                                       'spikformer_count_visible',
+                                       'spikformer_count_preproj_or',
+                                       'spikformer_count_temporal') else
                    self.attention_output_spike(out / max(n, 1)))
         else:
             # K^T V is a different attention function from ViT softmax.
@@ -213,13 +300,18 @@ class SpikeDrivenAttention(nn.Module):
             # tokens can still receive observed context through projected.
             projected = torch.maximum(projected,
                                       v.transpose(2, 3).reshape(t, b, n, c))
+        if self.variant == 'spikformer_count_preproj_or':
+            # Both streams are binary. Preserve query-specific aggregated
+            # evidence when the learned output projection/LIF erases it.
+            # Unlike the old V skip, this does not bypass QK association.
+            projected = torch.maximum(projected, out)
         return projected
 
 
 class SpikeTransformerBlock(nn.Module):
     def __init__(self, dim, heads, mlp_ratio=4, attention_variant='matrix_recode',
                  residual_policy='accumulate', masked_context_bridge='none',
-                 residual_gradient_policy='full'):
+                 residual_gradient_policy='full', layer_scale_init=1e-5):
         super().__init__()
         if residual_policy not in ('accumulate', 'recode_norm', 'layer_scale',
                                    'centered_layer_scale',
@@ -239,6 +331,9 @@ class SpikeTransformerBlock(nn.Module):
                                             'bounded_branch'):
             raise ValueError('Unknown residual gradient policy')
         self.residual_gradient_policy = residual_gradient_policy
+        if layer_scale_init <= 0:
+            raise ValueError('LayerScale initialization must be positive')
+        self.layer_scale_init = float(layer_scale_init)
         if masked_context_bridge not in ('none', 'spike_or'):
             raise ValueError('Unknown masked context bridge')
         self.masked_context_bridge = masked_context_bridge
@@ -257,15 +352,18 @@ class SpikeTransformerBlock(nn.Module):
         elif residual_policy in ('layer_scale', 'centered_layer_scale',
                                  'moment_preserving', 'signed_layer_scale'):
             # Match the small residual-branch initialization used by DINOv3.
-            self.attn_scale = nn.Parameter(torch.full((dim,), 1e-5))
-            self.mlp_scale = nn.Parameter(torch.full((dim,), 1e-5))
+            self.attn_scale = nn.Parameter(torch.full(
+                (dim,), self.layer_scale_init))
+            self.mlp_scale = nn.Parameter(torch.full(
+                (dim,), self.layer_scale_init))
 
-    def forward(self, membrane, masked_tokens=None):
+    def forward(self, membrane, masked_tokens=None, observed_keys=None):
         if self.residual_policy == 'binary_ei':
             # The first block receives tokenizer spikes; every later block
             # receives this binary output. Learned synapses see spikes only.
             attention = self.attn(self._branch_input(membrane,
-                                                     masked_tokens))
+                                                     masked_tokens),
+                                  observed_keys=observed_keys)
             excited = torch.maximum(membrane, attention)
             inhibition = self.fc2(self.fc1(self._branch_input(
                 excited, masked_tokens)))
@@ -285,7 +383,8 @@ class SpikeTransformerBlock(nn.Module):
             attention_input,
             output_current=self.residual_policy in ('signed_current',
                                                     'signed_layer_scale'),
-            masked_tokens=masked_tokens)
+            masked_tokens=masked_tokens,
+            observed_keys=observed_keys)
         if self.masked_context_bridge == 'spike_or' and masked_tokens is not None:
             if masked_tokens.shape != membrane.shape[1:3]:
                 raise ValueError('Masked token positions must match the token grid')
@@ -364,13 +463,22 @@ class SpikingVisionTransformer(nn.Module):
                  residual_policy='accumulate',
                  masked_context_bridge='none',
                  residual_gradient_policy='full',
-                 block_variant='standard'):
+                 block_variant='standard', evidence_attention_write_scale=1.,
+                 evidence_ffn_write_scale=1., tokenizer='patchify',
+                 layer_scale_init=1e-5):
         super().__init__()
         if image_size % patch_size or patch_size < 1 or depth < 1:
             raise ValueError('Image size must divide patch size; depth must be positive')
         self.image_size = image_size
         self.patch_size = patch_size
         self.dim = dim
+        if tokenizer not in ('patchify', 'sps'):
+            raise ValueError('Unknown event tokenizer')
+        if tokenizer == 'sps' and patch_size != 16:
+            raise ValueError('The four-stage SPS currently preserves a patch-16 grid')
+        self.tokenizer = tokenizer
+        self.in_channels = in_channels
+        self.layer_scale_init = float(layer_scale_init)
         if block_variant not in ('standard', 'evidence'):
             raise ValueError('Unknown transformer block variant')
         if block_variant == 'evidence' and (
@@ -380,7 +488,12 @@ class SpikingVisionTransformer(nn.Module):
                 residual_gradient_policy != 'full'):
             raise ValueError('Evidence blocks use their own attention/residual; '
                              'leave standard block options at their defaults')
+        if block_variant != 'evidence' and (
+                evidence_attention_write_scale != 1 or
+                evidence_ffn_write_scale != 1):
+            raise ValueError('Evidence write scales require evidence blocks')
         self.block_variant = block_variant
+        self.attention_variant = attention_variant
         if cls_aggregation not in ('attention_only', 'spike_pool',
                                    'event_weighted_pool',
                                    'spike_quadrant_pool'):
@@ -391,8 +504,17 @@ class SpikingVisionTransformer(nn.Module):
         self.residual_policy = residual_policy
         self.masked_context_bridge = masked_context_bridge
         self.residual_gradient_policy = residual_gradient_policy
-        self.patch_embed = nn.Conv2d(in_channels, dim, patch_size, patch_size, bias=False)
-        self.patch_norm = nn.BatchNorm2d(dim)
+        # Optional experimental iBOT-only reverse-path split. The parent
+        # objective enables it only during its separate masked forward pass.
+        self.gradient_cut_block = None
+        if tokenizer == 'patchify':
+            self.patch_embed = nn.Conv2d(
+                in_channels, dim, patch_size, patch_size, bias=False)
+            self.patch_norm = nn.BatchNorm2d(dim)
+        else:
+            self.patch_embed = SpikingPatchStem(in_channels, dim)
+            # SPS already normalizes and emits binary stage output.
+            self.patch_norm = nn.Identity()
         self.cls_current = nn.Parameter(torch.zeros(1, 1, dim))
         grid = image_size // patch_size
         self.position_current = nn.Parameter(torch.zeros(1, 1 + grid * grid, dim))
@@ -407,14 +529,18 @@ class SpikingVisionTransformer(nn.Module):
             # shares only the LIF factory with this file.
             from .evidence_block import EvidenceSpikeBlock
             self.blocks = nn.ModuleList(
-                EvidenceSpikeBlock(dim, heads, depth, mlp_ratio)
+                EvidenceSpikeBlock(
+                    dim, heads, depth, mlp_ratio,
+                    attention_write_scale=evidence_attention_write_scale,
+                    ffn_write_scale=evidence_ffn_write_scale)
                 for _ in range(depth))
         else:
             self.blocks = nn.ModuleList(SpikeTransformerBlock(dim, heads, mlp_ratio,
                                                            attention_variant,
                                                            residual_policy,
                                                            masked_context_bridge,
-                                                           residual_gradient_policy)
+                                                           residual_gradient_policy,
+                                                           layer_scale_init)
                                     for _ in range(depth))
         self.cls_output_norm = nn.BatchNorm1d(dim)
         self.cls_output_spike = _lif(threshold=.25)
@@ -431,7 +557,7 @@ class SpikingVisionTransformer(nn.Module):
         nn.init.constant_(self.mask_current, 1.3)
 
     def forward(self, frames, patch_mask=None):
-        if frames.ndim != 5 or frames.shape[2] != self.patch_embed.in_channels:
+        if frames.ndim != 5 or frames.shape[2] != self.in_channels:
             raise ValueError('Expected event frames [T,B,C,H,W]')
         t, b, _, h, w = frames.shape
         if h % self.patch_size or w % self.patch_size or h > self.image_size or w > self.image_size:
@@ -454,16 +580,33 @@ class SpikingVisionTransformer(nn.Module):
             time_mask = spatial_mask = None
         # Input event histograms can be real-valued currents. The first
         # synaptic stage encodes them into spikes before token processing.
-        x = self.patch_embed(frames.flatten(0, 1))
-        if patch_mask is not None:
+        if self.tokenizer == 'sps':
+            if patch_mask is not None:
+                # Remove the target's own events before overlapping SPS
+                # convolutions. Neighbouring visible events may still provide
+                # legitimate context through the convolution receptive field.
+                pixel_mask = time_mask.reshape(t * b, h // self.patch_size,
+                                               w // self.patch_size)
+                pixel_mask = pixel_mask.repeat_interleave(
+                    self.patch_size, -2).repeat_interleave(self.patch_size, -1)
+                stem_input = frames.masked_fill(pixel_mask.reshape(
+                    t, b, 1, h, w), 0)
+            else:
+                stem_input = frames
+            x = self.patch_embed(stem_input).flatten(3).transpose(2, 3)
+            x = x.reshape(t, b, n, self.dim)
+        else:
+            x = self.patch_embed(frames.flatten(0, 1))
+        if patch_mask is not None and self.tokenizer == 'patchify':
             # Mask before batch normalization: otherwise masked event content
             # would leak to visible tokens through the batch statistics.
             gh, gw = h // self.patch_size, w // self.patch_size
             x = x.reshape(t, b, self.dim, gh, gw)
             x = x.masked_fill(time_mask.reshape(t, b, 1, gh, gw), 0)
             x = x.flatten(0, 1)
-        x = self.patch_norm(x).flatten(2).transpose(1, 2)
-        x = x.reshape(t, b, n, self.dim)
+        if self.tokenizer == 'patchify':
+            x = self.patch_norm(x).flatten(2).transpose(1, 2)
+            x = x.reshape(t, b, n, self.dim)
         if patch_mask is not None:
             x = torch.where(time_mask[:, :, :, None], self.mask_current, x)
         cls = self.cls_current.expand(t, b, -1, -1)
@@ -516,7 +659,8 @@ class SpikingVisionTransformer(nn.Module):
         masked_tokens = (torch.cat((torch.zeros(b, 1, device=frames.device,
                                                   dtype=torch.bool), spatial_mask),
                                    dim=1) if patch_mask is not None else None)
-        if self.block_variant == 'evidence':
+        if (self.block_variant == 'evidence' or
+                self.attention_variant == 'spikformer_count_visible'):
             # Only actually visible input events can supply K/V content.
             # AND with ~time_mask prevents even hidden event existence from
             # affecting the support. CLS is a query, never an event source.
@@ -528,14 +672,29 @@ class SpikingVisionTransformer(nn.Module):
                 observed = observed & ~time_mask
             observed = torch.cat((torch.zeros(t, b, 1, dtype=torch.bool,
                                               device=frames.device), observed), 2)
-            for block in self.blocks:
+        else:
+            observed = None
+        if self.block_variant == 'evidence':
+            for index, block in enumerate(self.blocks):
+                if self.gradient_cut_block == index:
+                    tokens = tokens.detach()
                 tokens = block(tokens, observed)
         else:
-            for block in self.blocks:
-                tokens = block(tokens, masked_tokens)
-        cls = self.cls_output_norm(tokens[:, :, 0].reshape(t * b, self.dim))
-        cls = self.cls_output_spike(cls.reshape(t, b, self.dim))
-        patch = self.patch_output_spike(self.patch_output_norm(tokens[:, :, 1:]))
+            for index, block in enumerate(self.blocks):
+                if self.gradient_cut_block == index:
+                    tokens = tokens.detach()
+                tokens = block(tokens, masked_tokens,
+                               observed_keys=observed)
+        if self.gradient_cut_block == len(self.blocks):
+            tokens = tokens.detach()
+        cls_current = self.cls_output_norm(
+            tokens[:, :, 0].reshape(t * b, self.dim)).reshape(t, b, self.dim)
+        cls = self.cls_output_spike(cls_current)
+        patch_current = self.patch_output_norm(tokens[:, :, 1:])
+        patch = self.patch_output_spike(patch_current)
+        if getattr(self, 'keep_output_current', False):
+            # Diagnostic/loss readout only: BN currents entering the final LIFs.
+            self.output_current = (cls_current, patch_current)
         return cls, patch
 
     def parameter_count(self):

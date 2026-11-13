@@ -99,6 +99,103 @@ def random_crop_time(events, rng, low=.1, high=1.0):
     return {name: value[keep] for name, value in events.items()}
 
 
+def monotonic_midpoint_time_warp(events, midpoint):
+    """Move the temporal midpoint while preserving event order and geometry.
+
+    The first and second half are stretched/compressed by complementary
+    linear slopes. Unlike temporal cropping, every event remains present.
+    This is an event-specific paired-view transform, not an RGB augmentation.
+    """
+    if not 0 < midpoint < 1:
+        raise ValueError('Warped temporal midpoint must be inside (0, 1)')
+    if len(events['t']) < 2 or events['t'][-1] == events['t'][0]:
+        return copy_events(events)
+    times = np.asarray(events['t'], dtype=np.int64)
+    if np.any(np.diff(times) < 0):
+        raise ValueError('Event timestamps must be sorted before warping')
+    start = int(times[0])
+    duration = int(times[-1] - times[0])
+    unit = (times.astype(np.float64) - start) / duration
+    mapped = np.where(unit <= .5, unit * (2 * midpoint),
+                      midpoint + (unit - .5) * (2 * (1 - midpoint)))
+    warped = start + np.rint(mapped * duration).astype(np.int64)
+    result = copy_events(events)
+    result['t'] = warped
+    return result
+
+
+def correspondence_second_crop(events, sensor_size, frame_size, first_crop,
+                               crop_scale, seed, candidates=64):
+    """Choose a distinct second frame crop with shared *raw-event* support.
+
+    The first crop is fixed by the existing shared-core policy. Event counts
+    are projected onto that policy's pre-crop histogram grid, so all other
+    preprocessing remains identical. If no candidate passes the explicit
+    overlap gate, return the first crop and report a fallback.
+    """
+    width, height = sensor_size
+    top_a, left_a, h_a, w_a = first_crop
+    if frame_size < 2 or candidates < 1 or not 0 < crop_scale[0] <= crop_scale[1] <= 1:
+        raise ValueError('Invalid correspondence crop configuration')
+    if len(events['x']):
+        xx = np.minimum(np.asarray(events['x']) * frame_size // width,
+                        frame_size - 1).astype(np.int64)
+        yy = np.minimum(np.asarray(events['y']) * frame_size // height,
+                        frame_size - 1).astype(np.int64)
+        counts = np.bincount(yy * frame_size + xx,
+                             minlength=frame_size * frame_size).reshape(
+                                 frame_size, frame_size)
+    else:
+        counts = np.zeros((frame_size, frame_size), dtype=np.int64)
+    summed = np.pad(counts.cumsum(0).cumsum(1), ((1, 0), (1, 0)))
+
+    def mass(top, left, crop_height, crop_width):
+        return (summed[top + crop_height, left + crop_width]
+                - summed[top, left + crop_width]
+                - summed[top + crop_height, left] + summed[top, left])
+
+    first_mass = int(mass(top_a, left_a, h_a, w_a))
+    total = max(len(events['x']), 1)
+    rng = np.random.default_rng(seed)
+    area = frame_size * frame_size
+    target = rng.uniform(*crop_scale, size=candidates) * area
+    aspect = np.exp(rng.uniform(np.log(.75), np.log(4 / 3), size=candidates))
+    widths = np.rint(np.sqrt(target * aspect)).astype(int)
+    heights = np.rint(np.sqrt(target / aspect)).astype(int)
+    choices = []
+    for crop_height, crop_width in zip(heights, widths):
+        if not 0 < crop_height <= frame_size or not 0 < crop_width <= frame_size:
+            continue
+        top = int(rng.integers(frame_size - crop_height + 1))
+        left = int(rng.integers(frame_size - crop_width + 1))
+        bottom = min(top_a + h_a, top + crop_height)
+        right = min(left_a + w_a, left + crop_width)
+        overlap_h = max(0, bottom - max(top_a, top))
+        overlap_w = max(0, right - max(left_a, left))
+        overlap_mass = int(mass(max(top_a, top), max(left_a, left),
+                                overlap_h, overlap_w))
+        second_mass = int(mass(top, left, crop_height, crop_width))
+        overlap_area = overlap_h * overlap_w
+        area_iou = overlap_area / max(h_a * w_a +
+                                      crop_height * crop_width - overlap_area, 1)
+        shared_fraction = overlap_mass / max(first_mass, second_mass, 1)
+        valid = (shared_fraction >= .6 and area_iou <= .85 and
+                 min(first_mass, second_mass) / total >= .35)
+        if valid:
+            choices.append((abs(area_iou - .65),
+                            (top, left, crop_height, crop_width),
+                            shared_fraction, area_iou))
+    if not choices:
+        return first_crop, {'accepted': False, 'first_event_fraction':
+                            first_mass / total, 'shared_event_fraction': 1.,
+                            'area_iou': 1.}
+    _, second, shared_fraction, area_iou = min(choices, key=lambda item: item[0])
+    return tuple(map(int, second)), {'accepted': True,
+                    'first_event_fraction': first_mass / total,
+                    'shared_event_fraction': shared_fraction,
+                    'area_iou': area_iou}
+
+
 def random_roll_events(events, rng, max_shift=.5, sensor_size=(128, 128)):
     width, height = sensor_size
     shift_x = rng.integers(-int(max_shift * width), int(max_shift * width) + 1)
@@ -269,7 +366,8 @@ class Cifar10DVSPilotDataset(Dataset):
 
 
 SENSOR_SIZES = {'cifar10dvs': (128, 128), 'ncaltech101': (240, 180),
-                'nmnist': (34, 34), 'dvsgesture': (128, 128)}
+                'nmnist': (34, 34), 'dvsgesture': (128, 128),
+                'mini_nimagenet': (640, 480)}
 
 
 def read_5byte_events(path):
@@ -299,6 +397,24 @@ def read_gesture_events(path):
             't': data[:, 3].astype(np.int64) * 1000}
 
 
+def read_nimagenet_events(path):
+    """Read the official structured `event_data` NPZ without changing time."""
+
+    with np.load(path, allow_pickle=False) as archive:
+        if set(archive.files) != {'event_data'}:
+            raise ValueError(f'Unexpected N-ImageNet NPZ members: {path}')
+        data = archive['event_data']
+    if (data.ndim != 1 or data.dtype.names != ('x', 'y', 't', 'p')):
+        raise ValueError(f'Malformed N-ImageNet event_data: {path}')
+    events = {key: data[key].astype(np.int64) for key in ('x', 'y', 't', 'p')}
+    if (np.any(np.diff(events['t']) < 0) or
+            np.any((events['x'] < 0) | (events['x'] >= 640)) or
+            np.any((events['y'] < 0) | (events['y'] >= 480)) or
+            np.any((events['p'] < 0) | (events['p'] > 1))):
+        raise ValueError(f'Invalid N-ImageNet event coordinates/timestamps: {path}')
+    return events
+
+
 def read_event_record(path, dataset):
     if dataset == 'cifar10dvs':
         return read_cifar10dvs_aedat(path)
@@ -306,11 +422,13 @@ def read_event_record(path, dataset):
         return read_5byte_events(path)
     if dataset == 'dvsgesture':
         return read_gesture_events(path)
+    if dataset == 'mini_nimagenet':
+        return read_nimagenet_events(path)
     raise ValueError(dataset)
 
 
 class ManifestEventDataset(Dataset):
-    """Shared fixed-record training loader for the four SpikeCLR event datasets."""
+    """Shared fixed-record loader for SpikeCLR datasets and mini N-ImageNet."""
 
     def __init__(self, root, manifest_path, split='train', seed=42,
                  time_steps=4, size=128, local_crops=8, local_size=None,
@@ -329,12 +447,21 @@ class ManifestEventDataset(Dataset):
         self.epoch = 0
         self.local_crops = local_crops
         if global_view_policy not in ('independent', 'shared_core',
+                                      'shared_core_polarity',
+                                      'shared_core_timewarp',
+                                      'shared_core_timewarp_correspondence_crop',
+                                      'shared_core_timewarp_dinov3_local',
+                                      'asymmetric_clean_teacher_timewarp_student',
                                       'shared_temporal_windows',
                                       'shared_time_independent_space',
                                       'shared_time_shifted_space',
                                       'shared_core_nested_local'):
             raise ValueError('Unknown global view policy')
         self.global_view_policy = global_view_policy
+        if (global_view_policy ==
+                'asymmetric_clean_teacher_timewarp_student' and
+                local_crops != 0):
+            raise ValueError('Asymmetric teacher/student views require zero local crops')
         if view_validity not in ('none', 'resample_empty') or max_view_attempts < 1:
             raise ValueError('Invalid event-view validity policy')
         self.view_validity = view_validity
@@ -371,6 +498,11 @@ class ManifestEventDataset(Dataset):
         base = self.seed * 1_000_003 + index * 1000 + epoch * 10_000_019
         views = (self._shared_core_views(events, base) if
                  self.global_view_policy in ('shared_core',
+                                             'shared_core_polarity',
+                                             'shared_core_timewarp',
+                                             'shared_core_timewarp_correspondence_crop',
+                                             'shared_core_timewarp_dinov3_local',
+                                             'asymmetric_clean_teacher_timewarp_student',
                                              'shared_temporal_windows',
                                              'shared_time_independent_space',
                                              'shared_time_shifted_space',
@@ -393,7 +525,12 @@ class ManifestEventDataset(Dataset):
         """Two thinned observations of one event-space temporal/spatial core."""
         core = random_crop_time(events, np.random.default_rng(base + 71),
                                 *self.global_temporal_crop_range)
+        warp_direction = (1 if np.random.default_rng(base + 171).integers(2)
+                          else -1)
         rendered = []
+        teacher_rendered = []
+        asymmetric = (self.global_view_policy ==
+                      'asymmetric_clean_teacher_timewarp_student')
         for view_index in range(2):
             seed = base + view_index
             # Two windows of at least 75% of the shared core have at least
@@ -403,14 +540,43 @@ class ManifestEventDataset(Dataset):
                 core, np.random.default_rng(base + 81 + view_index), .75, 1.)
                 if self.global_view_policy == 'shared_temporal_windows'
                 else core)
-            thinned = thin_events(stream, np.random.default_rng(seed))
+            if asymmetric:
+                # Apply identical thinning masks to canonical and warped
+                # copies. The student stream then exactly matches the
+                # existing symmetric time-warp policy at the same seed.
+                offset = min(.1, .4 / self.time_steps)
+                warped_core = monotonic_midpoint_time_warp(
+                    stream, .5 + warp_direction * (1 if view_index else -1)
+                    * offset)
+                thinned = thin_events(stream, np.random.default_rng(seed))
+                teacher_rendered.append(eventclr_representation(
+                    thinned, self.time_steps, self.size, self.sensor_size))
+                stream = thin_events(warped_core, np.random.default_rng(seed))
+            else:
+                if self.global_view_policy in (
+                        'shared_core_timewarp',
+                        'shared_core_timewarp_correspondence_crop',
+                        'shared_core_timewarp_dinov3_local'):
+                    # Preserve the original symmetric policy's order: warp
+                    # the core before applying independent event thinning.
+                    offset = min(.1, .4 / self.time_steps)
+                    stream = monotonic_midpoint_time_warp(
+                        stream, .5 + warp_direction * (1 if view_index else -1)
+                        * offset)
+                stream = thin_events(stream, np.random.default_rng(seed))
             rendered.append(eventclr_representation(
-                thinned, self.time_steps, self.size, self.sensor_size))
+                stream, self.time_steps, self.size, self.sensor_size))
         crops = []
+        teacher_crops = []
         first_crop = None
         for view_index, view in enumerate(rendered):
             if (view_index == 1 and self.global_view_policy ==
-                    'shared_time_shifted_space'):
+                    'shared_core_timewarp_correspondence_crop'):
+                (top, left, height, width), _ = correspondence_second_crop(
+                    core, self.sensor_size, self.size, first_crop,
+                    self.global_crop_scale, base + 74)
+            elif (view_index == 1 and self.global_view_policy ==
+                  'shared_time_shifted_space'):
                 top, left, height, width = self._shift_global_crop(
                     first_crop, view.shape[-2:], base + 74)
             else:
@@ -423,9 +589,21 @@ class ManifestEventDataset(Dataset):
                         ratio=(3 / 4, 4 / 3))
                 if view_index == 0:
                     first_crop = top, left, height, width
-            crops.append(TF.resized_crop(
+            crop = TF.resized_crop(
                 view, top, left, height, width, (self.size, self.size),
-                InterpolationMode.NEAREST_EXACT))
+                InterpolationMode.NEAREST_EXACT)
+            if self.global_view_policy == 'shared_core_polarity':
+                # Light SpikeCLR-style appearance variation after an aligned
+                # event crop. Keep spatial support/polarity channels intact.
+                generator = torch.Generator().manual_seed(base + 151 + view_index)
+                if torch.rand((), generator=generator) < .8:
+                    crop = polarity_jitter(crop, generator,
+                                           contrast=.2, brightness=.2).clamp(0, 1)
+            crops.append(crop)
+            if asymmetric:
+                teacher_crops.append(TF.resized_crop(
+                    teacher_rendered[view_index], top, left, height, width,
+                    (self.size, self.size), InterpolationMode.NEAREST_EXACT))
         if self.global_view_policy == 'shared_core_nested_local':
             top, left, height, width = first_crop
             local_size = self.local_transform.size
@@ -455,7 +633,35 @@ class ManifestEventDataset(Dataset):
                     if view.any():
                         break
                 crops.append(view)
-        return crops
+        if self.global_view_policy == 'shared_core_timewarp_dinov3_local':
+            # DINOv3's default local crop is an independent RRC from the
+            # source image, not a crop nested inside either global view.
+            # Use the shared event-time core as the DVS source, keeping the
+            # first two global views identical to shared_core_timewarp.
+            local_size = self.local_transform.size
+            for local_index in range(self.local_crops):
+                attempts = (self.max_view_attempts
+                            if self.view_validity == 'resample_empty' else 1)
+                for attempt in range(attempts):
+                    seed = base + 201 + local_index + attempt * 1_000_003
+                    stream = thin_events(core, np.random.default_rng(seed))
+                    frame = eventclr_representation(
+                        stream, self.time_steps, self.size, self.sensor_size)
+                    with torch.random.fork_rng(devices=[]):
+                        torch.manual_seed(seed + 17)
+                        top, left, height, width = RandomResizedCrop.get_params(
+                            frame, scale=self.local_transform.crop.scale,
+                            ratio=(3 / 4, 4 / 3))
+                    view = TF.resized_crop(
+                        frame, top, left, height, width,
+                        (local_size, local_size), InterpolationMode.NEAREST_EXACT)
+                    if torch.rand((), generator=torch.Generator().manual_seed(
+                            seed + 19)) < .5:
+                        view = view.flip(-1)
+                    if view.any():
+                        break
+                crops.append(view)
+        return crops + teacher_crops
 
     @staticmethod
     def _shift_global_crop(crop, frame_size, seed):

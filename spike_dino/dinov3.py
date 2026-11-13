@@ -69,10 +69,12 @@ class SpikingProjectionHead(nn.Module):
         if prototype_readout not in ('linear', 'cosine'):
             raise ValueError('Unknown prototype readout')
         self.prototype_readout = prototype_readout
-        if shortcut not in ('none', 'input_or'):
+        if shortcut not in ('none', 'input_or', 'hidden_or'):
             raise ValueError('Unknown spiking projection shortcut')
         if shortcut == 'input_or' and bottleneck > dim:
             raise ValueError('Input spike shortcut requires bottleneck <= input width')
+        if shortcut == 'hidden_or' and layers != 3:
+            raise ValueError('Hidden spike shortcut requires a three-layer projection head')
         self.shortcut = shortcut
         self.bottleneck = bottleneck
         if layers not in (2, 3):
@@ -99,14 +101,16 @@ class SpikingProjectionHead(nn.Module):
         self.prototypes = nn.Parameter(torch.randn(prototypes, bottleneck) * .02)
 
     def forward(self, spikes, return_diversity=False, prediction_count=None,
-                diversity_positions=None, diversity_num_positions=None):
+                diversity_positions=None, diversity_num_positions=None,
+                window_size=None):
         if prediction_count is None:
             prediction_count = spikes.shape[1]
         if not 0 < prediction_count <= spikes.shape[1]:
             raise ValueError('Invalid number of prediction tokens')
         h = self.lif1(self.bn1(self.fc1(spikes)))
         if self.fc_mid is not None:
-            h = self.lif_mid(self.bn_mid(self.fc_mid(h)))
+            deeper = self.lif_mid(self.bn_mid(self.fc_mid(h)))
+            h = torch.maximum(h, deeper) if self.shortcut == 'hidden_or' else deeper
         h = self.lif2(self.bn2(self.fc2(h)))
         if self.shortcut == 'input_or':
             # A binary skip keeps observed patch events represented even if
@@ -119,6 +123,14 @@ class SpikingProjectionHead(nn.Module):
         weight = (F.normalize(self.prototypes, dim=-1, eps=1e-6)
                   if self.prototype_readout == 'cosine' else self.prototypes)
         scores = F.linear(feature, weight)
+        if window_size is not None:
+            if return_diversity or window_size < 1 or h.shape[0] % window_size:
+                raise ValueError('Window scores need divisible time and no diversity return')
+            windows = h.reshape(h.shape[0] // window_size, window_size,
+                                h.shape[1], h.shape[2]).mean(1)
+            windows = F.normalize(windows[:, :prediction_count].float(),
+                                  dim=-1, eps=1e-6)
+            return scores, F.linear(windows, weight)
         if return_diversity:
             diversity_start = (prediction_count if prediction_count < spikes.shape[1]
                                else 0)
@@ -140,9 +152,18 @@ class SpikingDinoEncoder(nn.Module):
                  masked_context_bridge='none',
                  residual_gradient_policy='full',
                  block_variant='standard',
+                 evidence_attention_write_scale=1.,
+                 evidence_ffn_write_scale=1.,
+                 tokenizer='patchify', layer_scale_init=1e-5,
+                 patch_head_time_pool='none',
+                 cls_window_size=None,
                  dino_hidden=None, dino_bottleneck=None, dino_prototypes=None,
                  ibot_hidden=None, ibot_bottleneck=None, ibot_prototypes=None):
         super().__init__()
+        if patch_head_time_pool not in ('none', 'pair_or'):
+            raise ValueError('Unknown patch-head temporal pooling policy')
+        self.patch_head_time_pool = patch_head_time_pool
+        self.cls_window_size = cls_window_size
         self.backbone = SpikingVisionTransformer(image_size=image_size,
                                                  patch_size=patch_size,
                                                  dim=dim, depth=depth, heads=heads,
@@ -151,7 +172,11 @@ class SpikingDinoEncoder(nn.Module):
                                                  residual_policy=residual_policy,
                                                  masked_context_bridge=masked_context_bridge,
                                                  residual_gradient_policy=residual_gradient_policy,
-                                                 block_variant=block_variant)
+                                                 block_variant=block_variant,
+                                                 evidence_attention_write_scale=evidence_attention_write_scale,
+                                                  evidence_ffn_write_scale=evidence_ffn_write_scale,
+                                                  tokenizer=tokenizer,
+                                                  layer_scale_init=layer_scale_init)
         self.dino_head = SpikingProjectionHead(
             dim, dino_hidden or head_hidden, dino_bottleneck or bottleneck,
             dino_prototypes or prototypes, head_layers, prototype_readout,
@@ -166,23 +191,39 @@ class SpikingDinoEncoder(nn.Module):
                 patch_diversity_source='masked', compute_cls_head=True):
         cls, patch = self.backbone(events, mask)
         t, b, p, d = patch.shape
-        cls_scores = self.dino_head(cls) if compute_cls_head else None
+        cls_window_scores = None
+        if compute_cls_head:
+            if self.cls_window_size is None:
+                cls_scores = self.dino_head(cls)
+            else:
+                cls_scores, cls_window_scores = self.dino_head(
+                    cls, window_size=self.cls_window_size)
+        else:
+            cls_scores = None
         patch_scores = None
         patch_diversity_gap = None
         if compute_patch_head:
+            if self.patch_head_time_pool == 'pair_or':
+                if t < 2 or t % 2:
+                    raise ValueError('Paired patch-head pooling needs an even time-step count')
+                # Two adjacent binary event observations become one binary
+                # patch-head step. The backbone/CLS path keeps all T steps.
+                patch_for_head = torch.maximum(patch[0::2], patch[1::2])
+            else:
+                patch_for_head = patch
             if patch_head_mask is not None:
                 if patch_head_mask.shape != (b, p) or patch_head_mask.dtype != torch.bool:
                     raise ValueError('patch_head_mask must index the current patch grid')
-                patch_input = patch[:, patch_head_mask]
+                patch_input = patch_for_head[:, patch_head_mask]
             else:
-                patch_input = patch.reshape(t, b * p, d)
+                patch_input = patch_for_head.reshape(patch_for_head.shape[0], b * p, d)
             if patch_input.shape[1]:
                 if patch_diversity:
                     if patch_diversity_source in ('visible', 'visible_position') and patch_head_mask is not None:
                         # The auxiliary spread constraint diagnoses the head;
                         # keep it from injecting a second, potentially huge
                         # gradient into the shared spiking backbone.
-                        visible = patch[:, ~patch_head_mask].detach()
+                        visible = patch_for_head[:, ~patch_head_mask].detach()
                         visible_positions = ((~patch_head_mask).nonzero(
                             as_tuple=False)[:, 1] if
                             patch_diversity_source == 'visible_position' else None)
@@ -201,7 +242,9 @@ class SpikingDinoEncoder(nn.Module):
             else:
                 patch_scores = patch.new_empty((0, self.ibot_head.prototypes.shape[0]))
         return {'cls_spikes': cls, 'patch_spikes': patch,
-                'cls_scores': cls_scores, 'patch_scores': patch_scores,
+                'cls_scores': cls_scores,
+                'cls_window_scores': cls_window_scores,
+                'patch_scores': patch_scores,
                 'patch_diversity_gap': patch_diversity_gap}
 
 
@@ -307,14 +350,19 @@ class SpikingDinoV3Prototype(nn.Module):
     """
 
     def __init__(self, *, student_temp=.1, teacher_temp=.04,
-                 teacher_momentum=.996, koleo_weight=.1, gram_weight=1.,
+                 teacher_momentum=.996, koleo_weight=.1, ibot_weight=1.,
+                 gram_weight=1.,
                  balance_mode='joint', norm_policy='ema_bn', ibot_reduction='sample',
                  target_policy='sinkhorn', center_momentum=.9,
+                 temporal_dino_weight=0., temporal_dino_window=4,
                  patch_teacher_aggregation='single_view',
+                 patch_teacher_head_policy='ibot',
                  ibot_diversity_weight=0.,
                  ibot_diversity_source='masked',
+                 branch_align_weight=0.,
                  global_cls_policy='masked',
                  ibot_residual_gradient_policy='inherit',
+                 ibot_gradient_cut_block=None,
                  **encoder_kwargs):
         super().__init__()
         if norm_policy not in ('ema_bn', 'batch_stat', 'layer_norm'):
@@ -327,13 +375,34 @@ class SpikingDinoV3Prototype(nn.Module):
                                              'matched_cross_view_mean'):
             raise ValueError('Unknown patch teacher aggregation')
         self.patch_teacher_aggregation = patch_teacher_aggregation
+        if patch_teacher_head_policy not in ('ibot', 'dino'):
+            raise ValueError('Unknown patch teacher head policy')
+        if (patch_teacher_head_policy == 'dino' and
+                patch_teacher_aggregation != 'single_view'):
+            raise ValueError('DINO-prototype patch targets require single-view patch teacher')
+        self.patch_teacher_head_policy = patch_teacher_head_policy
         if target_policy not in ('sinkhorn', 'ema_center'):
             raise ValueError('Unknown teacher target policy')
         self.target_policy = target_policy
         self.center_momentum = center_momentum
+        if temporal_dino_weight < 0 or temporal_dino_window < 1:
+            raise ValueError('Temporal DINO weight/window must be nonnegative/positive')
+        if temporal_dino_weight > 0 and (target_policy != 'sinkhorn' or
+                                         balance_mode != 'joint'):
+            raise ValueError('Temporal DINO currently requires joint Sinkhorn targets')
+        self.temporal_dino_weight = temporal_dino_weight
+        self.temporal_dino_window = temporal_dino_window
+        if temporal_dino_weight > 0:
+            encoder_kwargs['cls_window_size'] = temporal_dino_window
         if ibot_diversity_weight < 0:
             raise ValueError('iBOT diversity weight must be nonnegative')
         self.ibot_diversity_weight = ibot_diversity_weight
+        if branch_align_weight < 0:
+            raise ValueError('Branch alignment weight must be nonnegative')
+        if (branch_align_weight > 0 and
+                encoder_kwargs.get('block_variant', 'standard') != 'standard'):
+            raise ValueError('Branch alignment currently needs standard blocks')
+        self.branch_align_weight = branch_align_weight
         if ibot_diversity_source not in ('masked', 'visible',
                                         'visible_position'):
             raise ValueError('Unknown iBOT diversity source')
@@ -348,12 +417,21 @@ class SpikingDinoV3Prototype(nn.Module):
             raise ValueError('Separate iBOT gradient policy requires separate CLS pass')
         self.global_cls_policy = global_cls_policy
         self.ibot_residual_gradient_policy = ibot_residual_gradient_policy
+        if (ibot_gradient_cut_block is not None and
+                (global_cls_policy != 'unmasked_separate' or
+                 not 0 <= ibot_gradient_cut_block <= encoder_kwargs.get('depth', 12))):
+            raise ValueError('iBOT gradient cut needs separate CLS and a valid block index')
+        self.ibot_gradient_cut_block = ibot_gradient_cut_block
         if encoder_kwargs.get('block_variant', 'standard') == 'evidence':
             if norm_policy != 'layer_norm':
                 raise ValueError('Evidence prototype requires token-local layer_norm')
             if global_cls_policy != 'masked' or ibot_residual_gradient_policy != 'inherit':
                 raise ValueError('Evidence prototype currently uses the shared masked global pass')
         self.student = SpikingDinoEncoder(**encoder_kwargs)
+        if (patch_teacher_head_policy == 'dino' and
+                self.student.dino_head.prototypes.shape[0] !=
+                self.student.ibot_head.prototypes.shape[0]):
+            raise ValueError('DINO and iBOT prototype counts must match for shared targets')
         if norm_policy == 'batch_stat':
             self.student.apply(_use_current_batch_stats)
         elif norm_policy == 'layer_norm':
@@ -368,6 +446,9 @@ class SpikingDinoV3Prototype(nn.Module):
         self.teacher_temp = teacher_temp
         self.teacher_momentum = teacher_momentum
         self.koleo_weight = koleo_weight
+        if ibot_weight < 0:
+            raise ValueError('iBOT weight must be nonnegative')
+        self.ibot_weight = ibot_weight
         self.gram_weight = gram_weight
         if balance_mode not in ('joint', 'per_view'):
             raise ValueError('balance_mode must be joint or per_view')
@@ -395,11 +476,17 @@ class SpikingDinoV3Prototype(nn.Module):
         self.gram_teacher.load_state_dict(self.teacher.state_dict())
 
     def forward(self, views, masks, return_components=False, diagnostics=False,
-                context_ablation=False, temporal_masks=None):
+                context_ablation=False, temporal_masks=None,
+                teacher_views=None):
         if len(views) < 2 or len(masks) != 2:
             raise ValueError('Need two global views and two matching masks')
         if views[0].shape != views[1].shape:
             raise ValueError('Global views must share a patch grid')
+        if teacher_views is not None:
+            if (len(teacher_views) != 2 or
+                    any(teacher_views[index].shape != views[index].shape
+                        for index in range(2))):
+                raise ValueError('Canonical teacher views must align with both student globals')
         if temporal_masks is not None:
             if len(temporal_masks) != 2:
                 raise ValueError('Need two temporal mask tensors')
@@ -413,9 +500,11 @@ class SpikingDinoV3Prototype(nn.Module):
                           if self.patch_teacher_aggregation ==
                           'matched_cross_view_mean' else None)
             teacher = [_independent(
-                self.teacher, view,
+                self.teacher, (teacher_views[i] if teacher_views is not None
+                               else view),
                 patch_head_mask=(union_mask if union_mask is not None
-                                 else masks[i]))
+                                 else masks[i]),
+                compute_patch_head=self.patch_teacher_head_policy == 'ibot')
                        for i, view in enumerate(views[:2])]
             teacher_cls_logits = torch.cat([v['cls_scores'] for v in teacher])
             if self.balance_mode == 'joint':
@@ -435,41 +524,83 @@ class SpikingDinoV3Prototype(nn.Module):
             if self.target_policy == 'ema_center':
                 self.dino_center.lerp_(teacher_cls_logits.mean(0, keepdim=True),
                                        1 - self.center_momentum)
-        if self.global_cls_policy == 'unmasked_separate':
-            student = [_independent(self.student, v, compute_patch_head=False)
-                       for v in views]
-            blocks = self.student.backbone.blocks
-            saved_policies = [block.residual_gradient_policy for block in blocks]
-            if self.ibot_residual_gradient_policy != 'inherit':
-                for block in blocks:
-                    block.residual_gradient_policy = self.ibot_residual_gradient_policy
-            try:
-                patch_student = [_independent(
-                    self.student, views[i],
-                    (temporal_masks[i] if temporal_masks is not None
-                     else masks[i]), patch_head_mask=masks[i],
-                    patch_diversity=self.ibot_diversity_weight > 0,
-                    patch_diversity_source=self.ibot_diversity_source,
-                    compute_cls_head=False) for i in range(2)]
-            finally:
-                for block, policy in zip(blocks, saved_policies):
-                    block.residual_gradient_policy = policy
-        else:
-            student = [_independent(self.student, v,
-                                    (temporal_masks[i] if temporal_masks is not None
-                                     else masks[i]) if i < 2 else None,
-                                    patch_head_mask=masks[i] if i < 2 else None,
-                                    compute_patch_head=i < 2,
-                                    patch_diversity=i < 2 and
-                                    self.ibot_diversity_weight > 0,
-                                    patch_diversity_source=self.ibot_diversity_source)
-                       for i, v in enumerate(views)]
-            patch_student = student
-        dino_terms = [-(target * F.log_softmax(s['cls_scores'] / self.student_temp,
-                                              dim=-1)).sum(-1).mean()
-                      for i, target in enumerate(cls_target)
-                      for j, s in enumerate(student) if i != j]
+        branch_cls = []
+        branch_hook = None
+        if self.branch_align_weight > 0:
+            # Read the final attention branch on the two global student
+            # views. The target below is the opposite-view EMA final CLS.
+            # Hook outputs retain autograd; no teacher branch is modified.
+            branch_hook = self.student.backbone.blocks[-1].attn.register_forward_hook(
+                lambda _module, _inputs, output: branch_cls.append(
+                    output[:, :, 0]))
+        try:
+            if self.global_cls_policy == 'unmasked_separate':
+                student = [_independent(self.student, v, compute_patch_head=False)
+                           for v in views]
+                blocks = self.student.backbone.blocks
+                saved_policies = [block.residual_gradient_policy for block in blocks]
+                saved_cut = self.student.backbone.gradient_cut_block
+                self.student.backbone.gradient_cut_block = self.ibot_gradient_cut_block
+                if self.ibot_residual_gradient_policy != 'inherit':
+                    for block in blocks:
+                        block.residual_gradient_policy = self.ibot_residual_gradient_policy
+                try:
+                    patch_student = [_independent(
+                        self.student, views[i],
+                        (temporal_masks[i] if temporal_masks is not None
+                         else masks[i]), patch_head_mask=masks[i],
+                        patch_diversity=self.ibot_diversity_weight > 0,
+                        patch_diversity_source=self.ibot_diversity_source,
+                        compute_cls_head=False) for i in range(2)]
+                finally:
+                    self.student.backbone.gradient_cut_block = saved_cut
+                    for block, policy in zip(blocks, saved_policies):
+                        block.residual_gradient_policy = policy
+            else:
+                student = [_independent(self.student, v,
+                                        (temporal_masks[i] if temporal_masks is not None
+                                         else masks[i]) if i < 2 else None,
+                                        patch_head_mask=masks[i] if i < 2 else None,
+                                        compute_patch_head=i < 2,
+                                        patch_diversity=i < 2 and
+                                        self.ibot_diversity_weight > 0,
+                                        patch_diversity_source=self.ibot_diversity_source)
+                           for i, v in enumerate(views)]
+                patch_student = student
+        finally:
+            if branch_hook is not None:
+                branch_hook.remove()
+        dino_terms = []
+        dino_global_indices = []
+        dino_local_indices = []
+        for i, target in enumerate(cls_target):
+            for j, s in enumerate(student):
+                if i == j:
+                    continue
+                dino_terms.append(-(
+                    target * F.log_softmax(
+                        s['cls_scores'] / self.student_temp, dim=-1)
+                    ).sum(-1).mean())
+                (dino_global_indices if j < 2 else dino_local_indices).append(
+                    len(dino_terms) - 1)
         dino = torch.stack(dino_terms).mean()
+        temporal_dino = None
+        if self.temporal_dino_weight > 0:
+            teacher_windows = [item['cls_window_scores'] for item in teacher]
+            if any(item is None for item in teacher_windows):
+                raise RuntimeError('Teacher temporal CLS readout was not produced')
+            w, batch, prototypes = teacher_windows[0].shape
+            joined = torch.cat(teacher_windows, dim=1)
+            window_targets = sinkhorn_knopp(
+                joined.reshape(w * 2 * batch, prototypes), self.teacher_temp)
+            window_targets = window_targets.reshape(w, 2 * batch, prototypes)
+            targets_by_view = window_targets.split(batch, dim=1)
+            temporal_terms = [
+                -(targets_by_view[i].detach() * F.log_softmax(
+                    student[j]['cls_window_scores'] / self.student_temp,
+                    dim=-1)).sum(-1).mean()
+                for i in range(2) for j in range(2) if i != j]
+            temporal_dino = torch.stack(temporal_terms).mean()
         ibot_terms = []
         patch_logits = []
         masked_students = []
@@ -479,7 +610,16 @@ class SpikingDinoV3Prototype(nn.Module):
                 raise ValueError('Mask and teacher patch grid do not align')
             if mask.any():
                 if union_mask is None:
-                    patch_logits.append(teacher[i]['patch_scores'])
+                    if self.patch_teacher_head_policy == 'dino':
+                        # The full-view patch is read in the already trained
+                        # global prototype space. Reset temporal head state
+                        # after its earlier CLS use; teacher stays no-grad.
+                        functional.reset_net(self.teacher.dino_head)
+                        patch_logits.append(self.teacher.dino_head(
+                            teacher[i]['patch_spikes'][:, mask]))
+                        functional.reset_net(self.teacher.dino_head)
+                    else:
+                        patch_logits.append(teacher[i]['patch_scores'])
                 else:
                     selected = mask[union_mask]
                     patch_logits.append((
@@ -528,9 +668,33 @@ class SpikingDinoV3Prototype(nn.Module):
         # DINOv3 applies KoLeo inside each global crop. Concatenating both
         # views would repel two augmentations of the very same recording.
         koleo = torch.stack([koleo_loss(rate) for rate in crop_cls_rates]).sum()
-        total = dino + ibot + self.koleo_weight * koleo
+        total = dino + self.ibot_weight * ibot + self.koleo_weight * koleo
+        if self.branch_align_weight > 0:
+            if len(branch_cls) < 2:
+                raise RuntimeError('Both global attention branches must be observed')
+            branch_alignment = torch.stack([
+                F.mse_loss(branch_cls[i].float().mean(0),
+                           teacher[1 - i]['cls_spikes'].float().mean(0))
+                for i in range(2)]).mean()
+            total = total + self.branch_align_weight * branch_alignment
+        if temporal_dino is not None:
+            total = total + self.temporal_dino_weight * temporal_dino
         result = {'dino': dino.detach(), 'ibot': ibot.detach(),
                   'koleo': koleo.detach()}
+        if self.branch_align_weight > 0:
+            result['branch_alignment'] = branch_alignment.detach()
+            result['branch_cls_spike_rate'] = torch.stack([
+                branch_cls[i].float().mean() for i in range(2)]).mean().detach()
+            if return_components:
+                result['_branch_alignment_raw'] = branch_alignment
+        if temporal_dino is not None:
+            result['temporal_dino'] = temporal_dino.detach()
+            with torch.no_grad():
+                marginal = window_targets.mean((0, 1))
+                result['temporal_teacher_target_information'] = (
+                    -(marginal * marginal.clamp_min(1e-12).log()).sum() +
+                    (window_targets * window_targets.clamp_min(1e-12).log())
+                    .sum(-1).mean())
         if self.ibot_diversity_weight > 0:
             diversity_terms = [s['patch_diversity_gap'] for s in patch_student[:2]
                                if s['patch_diversity_gap'] is not None]
@@ -676,6 +840,11 @@ class SpikingDinoV3Prototype(nn.Module):
         if return_components:
             # Diagnostic-only references to the original autograd graph.
             result['_dino_raw'] = dino
+            result['_dino_global_raw'] = torch.stack([
+                dino_terms[index] for index in dino_global_indices]).mean()
+            result['_dino_local_raw'] = (torch.stack([
+                dino_terms[index] for index in dino_local_indices]).mean()
+                if dino_local_indices else None)
             result['_ibot_raw'] = ibot
             result['_koleo_raw'] = koleo
             if self.ibot_diversity_weight > 0:

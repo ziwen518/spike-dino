@@ -1,8 +1,0 @@
-{
-  "dataset": "DVSGesture",
-  "source": "Tonic DVSGesture dataset class; pre-cut recordings with millisecond timestamp precision",
-  "files": [
-    {"name":"ibmGestureTest.tar.gz", "size":691455012, "md5":"56070e45dadaa85fff82e0fbfbc06de5", "url":"https://ndownloader.figshare.com/files/38020584"},
-    {"name":"ibmGestureTrain.tar.gz", "size":2443675558, "md5":"3a8f0d4120a166bac7591f77409cb105", "url":"https://ndownloader.figshare.com/files/38022171"}
-  ]
-}
