@@ -2,6 +2,8 @@
 
 本目录是 **Arm I**（`sdino_v7_koleo_balance_nodc_c10_e300_20261112`）那份代码的本地副本，**只含代码，不含任何 checkpoint / 数据 / 日志**。每个文件的字节数与 sha256 见 `MANIFEST.md`（那张表由脚本实测生成，不是手抄的）。
 
+> **想看方法本身、而不是目录清单** → 读 `README_ARM_I.md`。那份文档单独讲 Arm I 的损失构成、三个组件、唯一变量、复现命令、结果与引用边界。本文件只讲目录里放了什么、从哪来。
+
 ## 1. 一句话说明这套代码是什么
 
 Arm I = **Arm F + 一个 flag**：`--no-center-rate`。也就是说，v7 的 DINO-on-sphere 方法里去掉"球面 DC 原点减法"，其余完全相同。
@@ -51,6 +53,16 @@ python -m scripts.train_sdino_v7 \
 ```
 
 把 `--proto-count 256 --no-center-rate` 那一行里的 `--no-center-rate` 换成 `--center-rate`（或直接删掉该 flag）就是 **Arm F**，两者是本项目唯一一对干净的单变量对照。
+
+**注意默认值方向**：Arm I 的原件 `train_sdino_v7.py` 里 `center_rate` 默认是 **True**（`--center-rate` 是 `store_true` + `default=True`，`:728`），因为 Arm I 与 Arm F 的差别只在命令行这一个 flag 上。所以**不加 flag 直接跑得到的是 Arm F，不是 Arm I**。为此本目录多放了一个不修改任何源文件的小包装：
+
+```bash
+python scripts/train_arm_i.py --output runs/arm_i_repro --epochs 300 ...   # 其余参数同上
+```
+
+它只是在你没有显式指定 centering 模式时往 `sys.argv` 追加 `--no-center-rate`，所以四个被 pin 的源文件哈希不受影响。实测：走包装 `center_rate=False`，直接跑 `train_sdino_v7.py` 是 `center_rate=True`。
+
+启动后核对两条：`recorded_config` 里 `rate_centering: none`，`metrics.jsonl` 每一行 `feature_center_norm` 严格为 `0.0`（Arm I 就是这么验的）。
 
 ## 4. Arm I 的最终读数（记录用，不在本目录重新计算）
 

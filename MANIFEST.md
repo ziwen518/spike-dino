@@ -21,6 +21,7 @@ them, so they are the server's present files and are labelled as such.
 | `scripts/eval_c10_v4.py` | 26640 | `6c665e253abb0edf` |
 | `scripts/eval_v7_downstream.py` | 13424 | `6edd33aa7d18eb17` |
 | `scripts/run_dvs_standard_ann_triage.py` | 7256 | `965ed0550402ca07` |
+| `scripts/train_arm_i.py` | 1121 | `a098c5566bae6a98` |
 | `scripts/train_generalization_reference.py` | 13744 | `11d0c0cb2a8bd028` |
 | `scripts/train_sdino_v4.py` | 29051 | `fef22d1f61a509a8` |
 | `spike_dino/__init__.py` | 0 | `e3b0c44298fc1c14` |
